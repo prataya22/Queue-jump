@@ -1,16 +1,30 @@
-# React + Vite
+# ⚡ Queue-Jump | Live Wait-Time Tracker
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+Queue-Jump is a sleek, neon-style crowdsourced wait-time tracker designed for college campuses and tech fests. It allows students to check live wait times for busy stalls and report they are "heading there soon" to proactively minimize "flash crowds".
 
-Currently, two official plugins are available:
+[![Deploy with Vercel](https://vercel.com/button)](https://vercel.com/new/clone?repository-url=https%3A%2F%2Fgithub.com%2Fprataya22%2FQueue-jump)
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
+## 🚀 Key Features
 
-## React Compiler
+- **PWA Mobile-Ready**: Install it on your phone home screen with one click.
+- **Predictive Surge Warning**: See how many people are heading to a stall before it gets crowded.
+- **Karma Point System**: Earn ⚡ points for helping the community by reporting wait times.
+- **Modern Neon UI**: Fast, responsive, and beautiful dark-mode interface.
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+## 📱 Installation (PWA)
 
-## Expanding the ESLint configuration
+1.  Open the live URL on your phone's browser.
+2.  **Android**: Tap the menu (three dots) and select **"Install App"**.
+3.  **iOS/iPhone**: Tap **"Share"** and select **"Add to Home Screen"**.
+4.  Launch from your home screen just like a native app.
 
-If you are developing a production application, we recommend using TypeScript with type-aware lint rules enabled. Check out the [TS template](https://github.com/vitejs/vite/tree/main/packages/create-vite/template-react-ts) for information on how to integrate TypeScript and [`typescript-eslint`](https://typescript-eslint.io) in your project.
+## 🛠️ Built With
+
+- **Vite** + **React**
+- **Framer Motion** (Animations)
+- **Vite PWA Plugin** (Standard Mobile App Manifest)
+- **Recharts** (Crowd trend analytics)
+
+---
+
+Developed for **Tech Fest 2026**. ⚡🏃‍♂️⚠️
