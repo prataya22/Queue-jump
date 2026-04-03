@@ -8,19 +8,60 @@ export default function LoginScreen({ onLogin }) {
   const [password, setPassword] = useState('');
 
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
 
   const handleSubmit = (e) => {
     e.preventDefault();
-    if (mode === 'login' && !email) return;
-    if (mode === 'signup' && (!name || !email)) return;
+    setError('');
+
+    if (!email || !password) {
+      setError('Please fill in all fields');
+      return;
+    }
+    
+    if (mode === 'signup' && !name) {
+      setError('Please provide your name');
+      return;
+    }
+
     setLoading(true);
+
     setTimeout(() => {
-      onLogin({
-        name: name || email.split('@')[0],
-        email,
-        college: 'Tech Fest 2026',
-      });
-    }, 1200);
+      const users = JSON.parse(localStorage.getItem('qj_users') || '{}');
+
+      if (mode === 'signup') {
+        if (users[email]) {
+          setError('An account with this email already exists.');
+          setLoading(false);
+          return;
+        }
+        users[email] = { name, email, password };
+        localStorage.setItem('qj_users', JSON.stringify(users));
+        onLogin({
+          name,
+          email,
+          college: 'Tech Fest 2026',
+        });
+      } else {
+        // Login mode
+        const user = users[email];
+        if (!user) {
+          setError('No account found. Please sign up first.');
+          setLoading(false);
+          return;
+        }
+        if (user.password !== password) {
+          setError('Incorrect password.');
+          setLoading(false);
+          return;
+        }
+        onLogin({
+          name: user.name,
+          email: user.email,
+          college: 'Tech Fest 2026',
+        });
+      }
+    }, 800);
   };
 
   return (
@@ -128,6 +169,8 @@ export default function LoginScreen({ onLogin }) {
               />
             </div>
           </div>
+
+          {error && <div className="login-error">{error}</div>}
 
           {/* Submit */}
           <motion.button

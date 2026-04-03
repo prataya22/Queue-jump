@@ -1589,6 +1589,15 @@ body {
   color: var(--text-tertiary);
 }
 
+.login-error {
+  color: var(--neon-red);
+  font-size: 13px;
+  font-weight: 500;
+  text-align: center;
+  margin: -4px 0 4px 0;
+  animation: fadeIn 0.3s ease;
+}
+
 /* Login Submit */
 .login-submit {
   width: 100%;
