@@ -1632,49 +1632,6 @@ body {
   color: var(--text-tertiary);
 }
 
-/* ===== USER AVATAR ===== */
-.user-avatar {
-  width: 32px;
-  height: 32px;
-  border-radius: 50%;
-  background: linear-gradient(135deg, var(--neon-purple), var(--neon-cyan));
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 14px;
-  font-weight: 800;
-  color: white;
-  cursor: pointer;
-  transition: all 0.2s;
-  flex-shrink: 0;
-}
-
-
-/* User Profile & Logout Header */
-.user-profile {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  background: rgba(255, 255, 255, 0.05);
-  padding: 4px;
-  padding-left: 10px;
-  border-radius: var(--radius-full);
-  border: 1px solid rgba(255, 255, 255, 0.1);
-}
-
-.user-profile .user-avatar {
-  background: var(--neon-cyan);
-  color: var(--bg-primary);
-  width: 28px;
-  height: 28px;
-  border-radius: 50%;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-weight: 800;
-  font-size: 14px;
-  cursor: default;
-}
 
 .logout-btn {
   background: rgba(255, 45, 85, 0.1);
@@ -1687,14 +1644,15 @@ body {
   align-items: center;
   justify-content: center;
   cursor: pointer;
-  transition: all 0.3s ease;
-  padding: 6px;
+  transition: all 0.3s var(--ease-out);
+  padding: 7px;
 }
 
 .logout-btn:hover {
-  background: rgba(255, 45, 85, 0.2);
-  transform: scale(1.05);
-  box-shadow: 0 0 12px rgba(255, 45, 85, 0.2);
+  background: rgba(255, 45, 85, 0.25);
+  transform: scale(1.08);
+  box-shadow: 0 0 15px rgba(255, 45, 85, 0.3);
+  color: #ff4d6d;
 }
 
 .logout-btn svg {
@@ -1868,4 +1826,36 @@ body {
   line-height: 1.4;
   color: #70757a;
   text-align: left;
+}
+
+.google-confirm {
+  text-align: center;
+}
+
+.google-confirm-btn {
+  width: 100%;
+  background: #4285F4;
+  color: white;
+  border: none;
+  padding: 12px;
+  border-radius: 4px;
+  font-weight: 500;
+  margin-bottom: 12px;
+  cursor: pointer;
+  transition: opacity 0.2s;
+}
+
+.google-confirm-btn:hover {
+  opacity: 0.9;
+}
+
+.google-cancel-btn {
+  width: 100%;
+  background: transparent;
+  color: #4285F4;
+  border: 1px solid #dadce0;
+  padding: 12px;
+  border-radius: 4px;
+  font-weight: 500;
+  cursor: pointer;
 }
