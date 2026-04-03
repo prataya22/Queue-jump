@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { motion } from 'framer-motion';
 import { auth, googleProvider } from '../firebase';
 import { createUserWithEmailAndPassword, signInWithEmailAndPassword, signInWithPopup, updateProfile } from 'firebase/auth';
+import { initializeNewUser } from '../utils/firebaseOperations';
 
 export default function LoginScreen({ onLogin }) {
   const [mode, setMode] = useState('login'); // 'login' or 'signup'
@@ -32,14 +33,30 @@ export default function LoginScreen({ onLogin }) {
       if (mode === 'signup') {
         const userCredential = await createUserWithEmailAndPassword(auth, email, password);
         await updateProfile(userCredential.user, { displayName: name });
+        
+        // Initialize new user with 0 karma points
+        await initializeNewUser(userCredential.user.uid, {
+          name: name,
+          email: userCredential.user.email,
+        });
+        
         onLogin({
+          uid: userCredential.user.uid,
           name: name,
           email: userCredential.user.email,
           college: 'Tech Fest 2026',
         });
       } else {
         const userCredential = await signInWithEmailAndPassword(auth, email, password);
+        
+        // Initialize user if first time (will skip if already exists)
+        await initializeNewUser(userCredential.user.uid, {
+          name: userCredential.user.displayName || email.split('@')[0],
+          email: userCredential.user.email,
+        });
+        
         onLogin({
+          uid: userCredential.user.uid,
           name: userCredential.user.displayName || email.split('@')[0],
           email: userCredential.user.email,
           college: 'Tech Fest 2026',
@@ -60,7 +77,15 @@ export default function LoginScreen({ onLogin }) {
     setLoading(true);
     try {
       const result = await signInWithPopup(auth, googleProvider);
+      
+      // Initialize user if first time (will skip if already exists)
+      await initializeNewUser(result.user.uid, {
+        name: result.user.displayName,
+        email: result.user.email,
+      });
+      
       onLogin({
+        uid: result.user.uid,
         name: result.user.displayName,
         email: result.user.email,
         college: 'Tech Fest 2026',

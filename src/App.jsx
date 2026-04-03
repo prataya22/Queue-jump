@@ -6,8 +6,8 @@ import VibeCard from './components/VibeCard';
 import ReportFlow from './components/ReportFlow';
 import KarmaPanel from './components/KarmaPanel';
 import NavBar from './components/NavBar';
+import { useRealtimeLocations, useRealtimeUserData } from './hooks/useRealtimeLocations';
 import {
-  initialLocations,
   initialKarma,
   simulateLiveUpdate,
   applyOperatingHours,
@@ -16,7 +16,8 @@ import {
 
 export default function App() {
   const [user, setUser] = useState(null);
-  const [locations, setLocations] = useState(() => applyOperatingHours(initialLocations));
+  const { locations, loading: locationsLoading } = useRealtimeLocations();
+  const [localLocations, setLocalLocations] = useState(locations);
   const [karma, setKarma] = useState(initialKarma);
   const [activeTab, setActiveTab] = useState('map');
   const [selectedLocationId, setSelectedLocationId] = useState(null);
@@ -25,7 +26,7 @@ export default function App() {
 
   // Derive selected location from ID so it always reflects latest data
   const selectedLocation = selectedLocationId
-    ? locations.find((l) => l.id === selectedLocationId) || null
+    ? localLocations.find((l) => l.id === selectedLocationId) || null
     : null;
 
   const handleLogin = useCallback((userData) => {
@@ -47,7 +48,7 @@ export default function App() {
   }, []);
 
   const handleVerify = useCallback((locationId) => {
-    setLocations((prev) => {
+    setLocalLocations((prev) => {
       const locName = prev.find((l) => l.id === locationId)?.name || 'location';
       setKarma((prevKarma) => ({
         ...prevKarma,
@@ -66,7 +67,7 @@ export default function App() {
   }, []);
 
   const handleGoingNow = useCallback((locationId) => {
-    setLocations((prev) => {
+    setLocalLocations((prev) => {
       const locName = prev.find((l) => l.id === locationId)?.name || 'location';
       setKarma((prevKarma) => ({
         ...prevKarma,
@@ -85,7 +86,7 @@ export default function App() {
   }, []);
 
   const handleSubmitReport = useCallback(({ locationId, waitTime }) => {
-    setLocations((prev) => {
+    setLocalLocations((prev) => {
       const locName = prev.find((l) => l.id === locationId)?.name || 'location';
       setKarma((prevKarma) => ({
         ...prevKarma,
@@ -116,6 +117,11 @@ export default function App() {
     setActiveTab(tab);
     setSelectedLocationId(null);
   }, []);
+
+  // Sync real-time locations with local state
+  useEffect(() => {
+    setLocalLocations(locations);
+  }, [locations]);
 
   // ===== RENDER =====
 
@@ -196,7 +202,7 @@ export default function App() {
       {activeTab === 'map' && (
         <div className="location-list-wrapper">
           <LocationList
-            locations={locations}
+            locations={localLocations}
             filterCategory={filterCategory}
             searchQuery={searchQuery}
             onSelectLocation={handleSelectLocation}
@@ -221,7 +227,7 @@ export default function App() {
       <AnimatePresence>
         {activeTab === 'report' && (
           <ReportFlow
-            locations={locations}
+            locations={localLocations}
             onClose={() => handleTabChange('map')}
             onSubmit={handleSubmitReport}
           />
