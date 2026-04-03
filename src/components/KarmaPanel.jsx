@@ -1,8 +1,19 @@
+import { useEffect, useState } from 'react';
 import { motion } from 'framer-motion';
+import { formatRelativeTime } from '../utils/time';
 
 export default function KarmaPanel({ karma, onClose }) {
+  const [, setTick] = useState(0);
   const progressPercent = ((karma.points % 100) / 100) * 100;
   const toNext = karma.nextLevel - karma.points;
+
+  useEffect(() => {
+    const id = setInterval(() => setTick((t) => t + 1), 15000);
+    return () => clearInterval(id);
+  }, []);
+
+  const activityTime = (item) =>
+    item.at != null ? formatRelativeTime(item.at) : item.time ?? '—';
 
   return (
     <motion.div
@@ -77,7 +88,7 @@ export default function KarmaPanel({ karma, onClose }) {
           <div className="karma-activity-title">📋 Recent Activity</div>
           {karma.recentActivity.map((item, i) => (
             <motion.div
-              key={i}
+              key={`${item.at ?? 'legacy'}-${i}`}
               className="activity-item"
               initial={{ x: 30, opacity: 0 }}
               animate={{ x: 0, opacity: 1 }}
@@ -86,7 +97,7 @@ export default function KarmaPanel({ karma, onClose }) {
               <span className="activity-text">{item.action}</span>
               <div className="activity-meta">
                 <span className="activity-points">+{item.points}</span>
-                <span className="activity-time">{item.time}</span>
+                <span className="activity-time">{activityTime(item)}</span>
               </div>
             </motion.div>
           ))}

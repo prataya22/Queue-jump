@@ -37,18 +37,28 @@ const CustomTooltip = ({ active, payload, label }) => {
 export default function VibeCard({ location, onClose, onVerify, onGoingNow }) {
   const [verified, setVerified] = useState(false);
   const [goingNow, setGoingNow] = useState(false);
+  const [pendingAction, setPendingAction] = useState(null);
   const color = CROWD_COLORS[location.crowdLevel];
   const label = CROWD_LABELS[location.crowdLevel];
 
-  const handleVerify = () => {
+  const confirmVerify = () => {
     setVerified(true);
     onVerify(location.id);
     setTimeout(() => setVerified(false), 2000);
   };
 
-  const handleGoingNowClick = () => {
+  const confirmGoingNow = () => {
     setGoingNow(true);
     onGoingNow(location.id);
+  };
+
+  const handleConfirmAction = () => {
+    if (pendingAction === 'verify') {
+      confirmVerify();
+    } else if (pendingAction === 'heading') {
+      confirmGoingNow();
+    }
+    setPendingAction(null);
   };
 
   return (
@@ -183,12 +193,44 @@ export default function VibeCard({ location, onClose, onVerify, onGoingNow }) {
         </div>
 
         {/* Actions */}
+        {pendingAction && (
+          <motion.div
+            className="contribution-confirm glass"
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: 10 }}
+          >
+            <div className="contribution-confirm-title">Confirm Contribution</div>
+            <div className="contribution-confirm-text">
+              {pendingAction === 'verify'
+                ? 'Do you really want to verify this crowd level now?'
+                : 'Do you really want to mark that you are heading here?'}
+            </div>
+            <div className="contribution-confirm-actions">
+              <button
+                type="button"
+                className="confirm-cancel-btn"
+                onClick={() => setPendingAction(null)}
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                className="confirm-submit-btn"
+                onClick={handleConfirmAction}
+              >
+                Yes, Contribute
+              </button>
+            </div>
+          </motion.div>
+        )}
+
         <div className="vibe-action-group">
           <motion.button
             className={`verify-btn ${verified ? 'verified' : location.crowdLevel}`}
-            onClick={handleVerify}
+            onClick={() => setPendingAction('verify')}
             whileTap={location.crowdLevel !== 'closed' && !verified ? { scale: 0.96 } : {}}
-            disabled={verified || location.crowdLevel === 'closed'}
+            disabled={verified || location.crowdLevel === 'closed' || !!pendingAction}
             style={{ flex: 1 }}
           >
             {location.crowdLevel === 'closed' ? (
@@ -202,9 +244,9 @@ export default function VibeCard({ location, onClose, onVerify, onGoingNow }) {
           
           <motion.button
             className={`verify-btn ${goingNow ? 'verified' : ''}`}
-            onClick={handleGoingNowClick}
+            onClick={() => setPendingAction('heading')}
             whileTap={location.crowdLevel !== 'closed' && !goingNow ? { scale: 0.96 } : {}}
-            disabled={goingNow || location.crowdLevel === 'closed'}
+            disabled={goingNow || location.crowdLevel === 'closed' || !!pendingAction}
             style={{ flex: 1, border: '1px solid rgba(168, 85, 247, 0.4)', color: '#A855F7', background: 'rgba(168, 85, 247, 0.1)' }}
           >
             {location.crowdLevel === 'closed' ? (

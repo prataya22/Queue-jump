@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useRef } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import { AnimatePresence } from 'framer-motion';
 import LoginScreen from './components/LoginScreen';
 import LocationList from './components/LocationList';
@@ -7,24 +7,36 @@ import ReportFlow from './components/ReportFlow';
 import KarmaPanel from './components/KarmaPanel';
 import NavBar from './components/NavBar';
 import { useRealtimeLocations, useRealtimeUserData } from './hooks/useRealtimeLocations';
+import { initialKarma, isCollegeOpen } from './data/mockData';
 import {
-  initialKarma,
-  simulateLiveUpdate,
-  applyOperatingHours,
-  isCollegeOpen,
-} from './data/mockData';
+  addUserKarma,
+  verifyLocationCrowd,
+  incrementHeadingHere,
+  updateLocationInFirebase,
+} from './utils/firebaseOperations';
+import {
+  buildKarmaDisplayFromFirebase,
+  emptyKarmaPlaceholder,
+} from './utils/karmaDisplay';
 
 export default function App() {
   const [user, setUser] = useState(null);
-  const { locations, loading: locationsLoading } = useRealtimeLocations();
+  const { locations } = useRealtimeLocations();
   const [localLocations, setLocalLocations] = useState(locations);
-  const [karma, setKarma] = useState(initialKarma);
+  const [guestKarma, setGuestKarma] = useState(initialKarma);
+  const { userData } = useRealtimeUserData(user?.uid);
+
+  const karma = useMemo(() => {
+    if (!user?.uid) return guestKarma;
+    if (!userData) return emptyKarmaPlaceholder();
+    return buildKarmaDisplayFromFirebase(userData);
+  }, [user?.uid, userData, guestKarma]);
+
   const [activeTab, setActiveTab] = useState('map');
   const [selectedLocationId, setSelectedLocationId] = useState(null);
   const [filterCategory, setFilterCategory] = useState('all');
   const [searchQuery, setSearchQuery] = useState('');
 
-  // Derive selected location from ID so it always reflects latest data
   const selectedLocation = selectedLocationId
     ? localLocations.find((l) => l.id === selectedLocationId) || null
     : null;
@@ -47,83 +59,142 @@ export default function App() {
     setSelectedLocationId(null);
   }, []);
 
-  const handleVerify = useCallback((locationId) => {
-    setLocalLocations((prev) => {
-      const locName = prev.find((l) => l.id === locationId)?.name || 'location';
-      setKarma((prevKarma) => ({
-        ...prevKarma,
-        points: prevKarma.points + 5,
-        recentActivity: [
-          { action: `Verified crowd at ${locName}`, points: 5, time: 'just now' },
-          ...prevKarma.recentActivity.slice(0, 4),
-        ],
-      }));
-      return prev.map((loc) =>
-        loc.id === locationId
-          ? { ...loc, verifications: loc.verifications + 1 }
-          : loc
-      );
-    });
-  }, []);
+  const handleVerify = useCallback(
+    async (locationId) => {
+      let locName = 'location';
+      setLocalLocations((prev) => {
+        const found = prev.find((l) => l.id === locationId);
+        locName = found?.name || 'location';
+        return prev.map((loc) =>
+          loc.id === locationId
+            ? { ...loc, verifications: loc.verifications + 1 }
+            : loc
+        );
+      });
 
-  const handleGoingNow = useCallback((locationId) => {
-    setLocalLocations((prev) => {
-      const locName = prev.find((l) => l.id === locationId)?.name || 'location';
-      setKarma((prevKarma) => ({
-        ...prevKarma,
-        points: prevKarma.points + 5,
-        recentActivity: [
-          { action: `Heading to ${locName}`, points: 5, time: 'just now' },
-          ...prevKarma.recentActivity.slice(0, 4),
-        ],
-      }));
-      return prev.map((loc) =>
-        loc.id === locationId
-          ? { ...loc, headingHereNow: (loc.headingHereNow || 0) + 1 }
-          : loc
-      );
-    });
-  }, []);
+      if (user?.uid) {
+        try {
+          await Promise.all([
+            addUserKarma(user.uid, 5, `Verified crowd at ${locName}`),
+            verifyLocationCrowd(locationId),
+          ]);
+        } catch (e) {
+          console.error(e);
+        }
+      } else {
+        setGuestKarma((prev) => ({
+          ...prev,
+          points: prev.points + 5,
+          recentActivity: [
+            { action: `Verified crowd at ${locName}`, points: 5, at: Date.now() },
+            ...prev.recentActivity.slice(0, 4),
+          ],
+        }));
+      }
+    },
+    [user?.uid]
+  );
 
-  const handleSubmitReport = useCallback(({ locationId, waitTime }) => {
-    setLocalLocations((prev) => {
-      const locName = prev.find((l) => l.id === locationId)?.name || 'location';
-      setKarma((prevKarma) => ({
-        ...prevKarma,
-        points: prevKarma.points + 10,
-        recentActivity: [
-          { action: `Reported crowd at ${locName}`, points: 10, time: 'just now' },
-          ...prevKarma.recentActivity.slice(0, 4),
-        ],
-      }));
-      return prev.map((loc) =>
-        loc.id === locationId
-          ? {
-              ...loc,
-              currentWait: waitTime,
-              crowdLevel:
-                !isCollegeOpen() ? 'closed' :
-                waitTime <= 10 ? 'empty' : waitTime <= 25 ? 'moderate' : 'packed',
-              reports: loc.reports + 1,
-              lastUpdated: 'just now',
-            }
-          : loc
-      );
-    });
-    setActiveTab('map');
-  }, []);
+  const handleGoingNow = useCallback(
+    async (locationId) => {
+      let locName = 'location';
+      setLocalLocations((prev) => {
+        const found = prev.find((l) => l.id === locationId);
+        locName = found?.name || 'location';
+        return prev.map((loc) =>
+          loc.id === locationId
+            ? { ...loc, headingHereNow: (loc.headingHereNow || 0) + 1 }
+            : loc
+        );
+      });
+
+      if (user?.uid) {
+        try {
+          await Promise.all([
+            addUserKarma(user.uid, 5, `Heading to ${locName}`),
+            incrementHeadingHere(locationId),
+          ]);
+        } catch (e) {
+          console.error(e);
+        }
+      } else {
+        setGuestKarma((prev) => ({
+          ...prev,
+          points: prev.points + 5,
+          recentActivity: [
+            { action: `Heading to ${locName}`, points: 5, at: Date.now() },
+            ...prev.recentActivity.slice(0, 4),
+          ],
+        }));
+      }
+    },
+    [user?.uid]
+  );
+
+  const handleSubmitReport = useCallback(
+    async ({ locationId, waitTime }) => {
+      let locName = 'location';
+      let prevReports = 0;
+      const crowdLevel =
+        !isCollegeOpen()
+          ? 'closed'
+          : waitTime <= 10
+            ? 'empty'
+            : waitTime <= 25
+              ? 'moderate'
+              : 'packed';
+
+      setLocalLocations((prev) => {
+        const loc = prev.find((l) => l.id === locationId);
+        locName = loc?.name || 'location';
+        prevReports = loc?.reports ?? 0;
+        return prev.map((locItem) =>
+          locItem.id === locationId
+            ? {
+                ...locItem,
+                currentWait: waitTime,
+                crowdLevel,
+                reports: (locItem.reports || 0) + 1,
+                lastUpdated: 'just now',
+              }
+            : locItem
+        );
+      });
+      setActiveTab('map');
+
+      if (user?.uid) {
+        try {
+          await addUserKarma(user.uid, 10, `Reported crowd at ${locName}`);
+          await updateLocationInFirebase(locationId, {
+            currentWait: waitTime,
+            crowdLevel,
+            reports: prevReports + 1,
+          });
+        } catch (e) {
+          console.error(e);
+        }
+      } else {
+        setGuestKarma((prev) => ({
+          ...prev,
+          points: prev.points + 10,
+          recentActivity: [
+            { action: `Reported crowd at ${locName}`, points: 10, at: Date.now() },
+            ...prev.recentActivity.slice(0, 4),
+          ],
+        }));
+      }
+    },
+    [user?.uid]
+  );
 
   const handleTabChange = useCallback((tab) => {
     setActiveTab(tab);
     setSelectedLocationId(null);
   }, []);
 
-  // Sync real-time locations with local state
   useEffect(() => {
     setLocalLocations(locations);
   }, [locations]);
-
-  // ===== RENDER =====
 
   if (!user) {
     return (
@@ -135,7 +206,6 @@ export default function App() {
 
   return (
     <div className="app-container">
-      {/* Header */}
       <header className="app-header">
         <div className="app-logo">
           <div className="app-logo-icon">⚡</div>
@@ -162,7 +232,6 @@ export default function App() {
         </div>
       </header>
 
-      {/* Filter and Search */}
       {activeTab === 'map' && (
         <div className="discovery-header">
           <div className="search-bar-wrapper">
@@ -198,7 +267,6 @@ export default function App() {
         </div>
       )}
 
-      {/* Options List */}
       {activeTab === 'map' && (
         <div className="location-list-wrapper">
           <LocationList
@@ -210,7 +278,6 @@ export default function App() {
         </div>
       )}
 
-      {/* Vibe Card Overlay */}
       <AnimatePresence>
         {selectedLocation && activeTab === 'map' && (
           <VibeCard
@@ -223,7 +290,6 @@ export default function App() {
         )}
       </AnimatePresence>
 
-      {/* Report Flow */}
       <AnimatePresence>
         {activeTab === 'report' && (
           <ReportFlow
@@ -234,7 +300,6 @@ export default function App() {
         )}
       </AnimatePresence>
 
-      {/* Karma Panel */}
       <AnimatePresence>
         {activeTab === 'karma' && (
           <KarmaPanel
@@ -244,7 +309,6 @@ export default function App() {
         )}
       </AnimatePresence>
 
-      {/* Bottom Nav */}
       <NavBar activeTab={activeTab} onTabChange={handleTabChange} />
     </div>
   );

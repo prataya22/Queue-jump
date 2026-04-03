@@ -660,6 +660,67 @@ body {
   width: 100%;
 }
 
+.contribution-confirm {
+  padding: 14px;
+  border-radius: var(--radius-lg);
+  margin-bottom: 12px;
+  border: 1px solid rgba(0, 229, 255, 0.2);
+}
+
+.contribution-confirm-title {
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--neon-cyan);
+  letter-spacing: 0.4px;
+  text-transform: uppercase;
+  margin-bottom: 6px;
+}
+
+.contribution-confirm-text {
+  font-size: 13px;
+  color: var(--text-primary);
+  line-height: 1.4;
+  margin-bottom: 12px;
+}
+
+.contribution-confirm-actions {
+  display: flex;
+  gap: 8px;
+}
+
+.confirm-cancel-btn,
+.confirm-submit-btn {
+  flex: 1;
+  border-radius: var(--radius-md);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  padding: 10px 12px;
+  font-family: 'Inter', sans-serif;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s var(--ease-out);
+}
+
+.confirm-cancel-btn {
+  background: rgba(255, 255, 255, 0.06);
+  color: var(--text-secondary);
+}
+
+.confirm-cancel-btn:hover {
+  background: rgba(255, 255, 255, 0.1);
+  color: var(--text-primary);
+}
+
+.confirm-submit-btn {
+  background: rgba(0, 229, 255, 0.15);
+  border-color: rgba(0, 229, 255, 0.35);
+  color: var(--neon-cyan);
+}
+
+.confirm-submit-btn:hover {
+  background: rgba(0, 229, 255, 0.22);
+}
+
 .verify-btn {
   width: 100%;
   padding: 16px;

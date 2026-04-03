@@ -238,11 +238,11 @@ export const initialKarma = {
     { id: 'pioneer', name: 'Pioneer', icon: '🚀', earned: false, desc: 'First to report at a new location' },
   ],
   recentActivity: [
-    { action: 'Reported crowd at Canteen', points: 10, time: '5 min ago' },
-    { action: 'Verified Library status', points: 5, time: '12 min ago' },
-    { action: 'Reported at Gaming Zone', points: 10, time: '1 hr ago' },
-    { action: 'Earned "Streak Master" badge', points: 25, time: '2 hr ago' },
-    { action: 'Verified Robotics Arena', points: 5, time: '3 hr ago' },
+    { action: 'Reported crowd at Canteen', points: 10, at: Date.now() - 5 * 60 * 1000 },
+    { action: 'Verified Library status', points: 5, at: Date.now() - 12 * 60 * 1000 },
+    { action: 'Reported at Gaming Zone', points: 10, at: Date.now() - 60 * 60 * 1000 },
+    { action: 'Earned "Streak Master" badge', points: 25, at: Date.now() - 2 * 60 * 60 * 1000 },
+    { action: 'Verified Robotics Arena', points: 5, at: Date.now() - 3 * 60 * 60 * 1000 },
   ],
 };
 

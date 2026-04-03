@@ -84,6 +84,8 @@ export const useRealtimeUserData = (userId) => {
           if (snapshot.exists()) {
             setUserData(snapshot.val());
             setError(null);
+          } else {
+            setUserData(null);
           }
           setLoading(false);
         },
