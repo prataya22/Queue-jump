@@ -234,7 +234,7 @@ export const initialKarma = {
     { id: 'verifier', name: 'Verifier', icon: '✅', earned: true, desc: 'Verified 10 crowd levels' },
     { id: 'hero', name: 'Campus Hero', icon: '🦸', earned: false, desc: 'Help 50 people skip the queue' },
     { id: 'streak', name: 'Streak Master', icon: '🔥', earned: true, desc: '7-day reporting streak' },
-    { id: 'nightowl', name: 'Night Owl', icon: '🦉', earned: false, desc: 'Report after 10PM' },
+
     { id: 'pioneer', name: 'Pioneer', icon: '🚀', earned: false, desc: 'First to report at a new location' },
   ],
   recentActivity: [

@@ -60,10 +60,13 @@ export default function KarmaPanel({ karma, onClose }) {
                 initial={{ scale: 0, opacity: 0 }}
                 animate={{ scale: 1, opacity: 1 }}
                 transition={{ delay: 0.1 * i, type: 'spring', stiffness: 300, damping: 20 }}
-                title={badge.desc}
               >
                 <span className="badge-icon">{badge.icon}</span>
                 <span className="badge-name">{badge.name}</span>
+                <div className="badge-tooltip">
+                  <div className="badge-tooltip-title">{badge.name}</div>
+                  <div className="badge-tooltip-desc">{badge.desc}</div>
+                </div>
               </motion.div>
             ))}
           </div>
