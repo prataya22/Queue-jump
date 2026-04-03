@@ -28,15 +28,6 @@ export default function App() {
     ? locations.find((l) => l.id === selectedLocationId) || null
     : null;
 
-  // Simulated live updates every 5 seconds (only when logged in)
-  useEffect(() => {
-    if (!user) return;
-    const interval = setInterval(() => {
-      setLocations((prev) => simulateLiveUpdate(prev));
-    }, 5000);
-    return () => clearInterval(interval);
-  }, [user]);
-
   const handleLogin = useCallback((userData) => {
     setUser(userData);
   }, []);
