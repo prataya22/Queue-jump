@@ -125,12 +125,12 @@ export default function LoginScreen({ onLogin }) {
               exit={{ height: 0, opacity: 0 }}
               transition={{ duration: 0.3 }}
             >
-              <label>Full Name</label>
+              <label>Username</label>
               <div className="login-input-wrap">
                 <span className="login-input-icon">👤</span>
                 <input
                   type="text"
-                  placeholder="Your name"
+                  placeholder="Your username"
                   value={name}
                   onChange={(e) => setName(e.target.value)}
                   autoComplete="name"
