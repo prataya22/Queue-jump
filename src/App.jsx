@@ -6,6 +6,7 @@ import VibeCard from './components/VibeCard';
 import ReportFlow from './components/ReportFlow';
 import KarmaPanel from './components/KarmaPanel';
 import NavBar from './components/NavBar';
+import LoginModal from './components/LoginModal';
 import { useRealtimeLocations, useRealtimeUserData } from './hooks/useRealtimeLocations';
 import { isCollegeOpen } from './data/mockData';
 import {
@@ -13,6 +14,9 @@ import {
   verifyLocationCrowd,
   incrementHeadingHere,
   updateLocationInFirebase,
+  submitReportWithVerification,
+  verifyReportAccuracy,
+  isReportVerified,
 } from './utils/firebaseOperations';
 import {
   buildKarmaDisplayFromFirebase,
@@ -24,20 +28,90 @@ import {
 
 // Helper to format ISO timestamps into relative strings like "2m ago"
 function formatRelativeTime(isoString) {
-  if (!isoString) return '2 min ago';
-  if (isoString.includes('ago')) return isoString; // Handle legacy mock strings
-
+  if (!isoString) return 'No data';
+  
   try {
     const past = new Date(isoString);
-    if (isNaN(past.getTime())) return 'just now';
+    if (isNaN(past.getTime())) return 'No data';
     
-    const diff = Math.floor((new Date() - past) / 1000);
-    if (diff < 60) return 'just now';
-    if (diff < 3600) return `${Math.floor(diff / 60)} min ago`;
-    return `${Math.floor(diff / 3600)}h ago`;
-  } catch {
-    return 'just now';
+    const now = new Date();
+    const diff = Math.floor((now - past) / 1000);
+    
+    if (diff < 0) return 'Just now'; // Future timestamp (shouldn't happen)
+    if (diff < 30) return 'Just now';
+    if (diff < 60) return `${diff}s ago`;
+    if (diff < 3600) return `${Math.floor(diff / 60)}m ago`;
+    if (diff < 86400) return `${Math.floor(diff / 3600)}h ago`;
+    return `${Math.floor(diff / 86400)}d ago`;
+  } catch (e) {
+    console.error('formatRelativeTime error:', e);
+    return 'No data';
   }
+}
+
+// Helper: Calculate crowd level from weighted average of reports
+function calculateWeightedCrowdLevel(location, newWaitTime, timestamp) {
+  if (!isCollegeOpen()) return 'closed';
+  
+  // Get recent reports from localStorage if available
+  let recentReports = [];
+  try {
+    const stored = localStorage.getItem('queuejump_local_reports');
+    if (stored) {
+      const reports = JSON.parse(stored);
+      const locReports = reports[location.id];
+      if (locReports && locReports.waitHistory) {
+        recentReports = locReports.waitHistory.slice(-10); // Last 10 reports
+      }
+    }
+  } catch (e) {
+    console.log('Could not load report history');
+  }
+
+  // Add current report to the pool
+  const currentTime = new Date(timestamp).getTime();
+  const reportsWithWeights = recentReports
+    .map(report => ({
+      wait: report.wait,
+      timestamp: new Date(report.timestamp).getTime(),
+      weight: 1
+    }))
+    .concat([{ wait: newWaitTime, timestamp: currentTime, weight: 1 }])
+    .filter(r => !isNaN(r.wait) && r.wait >= 0)
+    .slice(-15); // Keep last 15 reports max
+
+  if (reportsWithWeights.length === 0) {
+    // Fallback to single value
+    return newWaitTime <= 10 ? 'empty' : newWaitTime <= 25 ? 'moderate' : 'packed';
+  }
+
+  // Calculate recency-weighted average
+  const now = currentTime;
+  const fiveMinutesAgo = now - (5 * 60 * 1000);
+  
+  let totalWeight = 0;
+  let weightedSum = 0;
+
+  reportsWithWeights.forEach(report => {
+    // Recent reports (last 5 min) get weight 1.0
+    // Older reports get exponentially lower weights
+    const age = now - report.timestamp;
+    const recencyWeight = age < (5 * 60 * 1000) 
+      ? 1.0 
+      : Math.max(0.1, 1.0 - (age / (30 * 60 * 1000))); // Decays over 30 minutes
+    
+    totalWeight += recencyWeight;
+    weightedSum += report.wait * recencyWeight;
+  });
+
+  const weightedAverage = totalWeight > 0 ? weightedSum / totalWeight : newWaitTime;
+
+  console.log(`Weighted avg wait time: ${weightedAverage.toFixed(1)} min (from ${reportsWithWeights.length} reports)`);
+
+  // Determine crowd level from weighted average
+  if (weightedAverage <= 10) return 'empty';
+  if (weightedAverage <= 25) return 'moderate';
+  return 'packed';
 }
 
 export default function App() {
@@ -48,6 +122,7 @@ export default function App() {
   /** After a write, server total so UI updates even if the listener lags. Cleared when RTDB matches. */
   const [pointsOverride, setPointsOverride] = useState(null);
   const [activityOverride, setActivityOverride] = useState([]);
+  const [verificationPending, setVerificationPending] = useState({}); // Track reports awaiting verification
   const { userData } = useRealtimeUserData(user?.uid);
 
   useEffect(() => {
@@ -103,6 +178,7 @@ export default function App() {
   const [selectedLocationId, setSelectedLocationId] = useState(null);
   const [filterCategory, setFilterCategory] = useState('all');
   const [searchQuery, setSearchQuery] = useState('');
+  const [showLoginModal, setShowLoginModal] = useState(false);
 
   const selectedLocation = selectedLocationId
     ? localLocations.find((l) => l.id === selectedLocationId) || null
@@ -118,8 +194,14 @@ export default function App() {
     setActiveTab('map');
     setSelectedLocationId(null);
     setPointsOverride(null);
-    setActivityOverride([]);
-    // Note: guestKarma is NOT reset here because the user wants it to persist
+    // Preserve activityOverride to keep pending reports visible after logout
+    // Only clear guest karma on logout
+    try {
+      localStorage.removeItem('queuejump_guest_karma');
+    } catch (e) {
+      console.error('Failed to clear guest karma from storage:', e);
+    }
+    setGuestKarma(createGuestKarmaState());
   }, []);
 
   const handleSelectLocation = useCallback((loc) => {
@@ -233,99 +315,187 @@ export default function App() {
 
   const handleSubmitReport = useCallback(
     async ({ locationId, waitTime }) => {
-      // 1. Validation (Ensures user gives correct data as requested)
-      const sanitizedWait = Math.max(0, Math.min(60, Number(waitTime)));
+      // Only authorized users can submit reports
+      if (!user?.uid) {
+        console.log('Report submission denied: Guest account');
+        return;
+      }
+
+      const sanitizedWait = Math.max(0, Math.min(30, Number(waitTime)));
       
-      if (!Array.isArray(localLocations)) return;
+      if (!Array.isArray(localLocations)) {
+        console.error('❌ localLocations is not an array:', localLocations);
+        return;
+      }
+      
       const loc = localLocations.find(l => l.id === locationId);
+      console.log('🔍 Report Debug:', {
+        locationId,
+        foundLocation: loc?.name || 'NOT FOUND',
+        sanitizedWait,
+        allLocations: localLocations.map(l => ({ id: l.id, name: l.name }))
+      });
+      
+      if (!loc) {
+        console.error('❌ Location not found:', locationId);
+        return;
+      }
+      
       const locName = loc?.name || 'location';
-      const prevReports = loc?.reports ?? 0;
       const timestamp = new Date().toISOString();
       
-      console.log(`Submitting wait report: ${sanitizedWait} min for ${locName}`);
+      console.log(`✅ Submitting wait report: ${sanitizedWait} min for ${locName}`);
 
-      const crowdLevel =
-        !isCollegeOpen()
-          ? 'closed'
-          : sanitizedWait <= 10
-            ? 'empty'
-            : sanitizedWait <= 25
-              ? 'moderate'
-              : 'packed';
+      // Calculate crowd level using weighted average of reports
+      const crowdLevel = calculateWeightedCrowdLevel(loc, sanitizedWait, timestamp);
 
-      // 2. Simple Prediction: Update the trend chart to reflect the NEW report immediately
-      const updatedTrend = loc?.trend ? [...loc.trend] : [];
+      // Calculate updated trend - create deep copies of trend objects
+      const updatedTrend = loc?.trend 
+        ? loc.trend.map(t => ({ ...t })) // Deep copy each trend object
+        : [];
       const currentHour = new Date().getHours();
       const trendIndex = updatedTrend.findIndex(t => {
         const hourStr = t.hour.includes('AM') ? parseInt(t.hour) : parseInt(t.hour) + 12;
         return hourStr === currentHour;
       });
       if (trendIndex !== -1) {
-        // Map 0-60 wait time to 0-100 crowd intensity prediction
-        updatedTrend[trendIndex].crowd = Math.round((sanitizedWait / 60) * 100);
+        updatedTrend[trendIndex] = {
+          ...updatedTrend[trendIndex],
+          crowd: Math.round((sanitizedWait / 30) * 100)
+        };
       }
 
-      setLocalLocations((prev) => {
-        if (!Array.isArray(prev)) return prev;
-        return prev.map((locItem) =>
-          locItem.id === locationId
-            ? {
-                ...locItem,
-                currentWait: sanitizedWait,
-                crowdLevel,
-                reports: (locItem.reports || 0) + 1,
-                lastUpdated: timestamp, // Save actual ISO timestamp
-                trend: updatedTrend,     // Save updated prediction
-              }
-            : locItem
-        );
-      });
-      // Removed immediate tab change to manual dismissal of success overlay
-
-
-      if (user?.uid) {
-        try {
-          const activityLabel = `Reported ${sanitizedWait} min wait at ${locName}`;
-          const total = await addUserKarma(user.uid, 20, activityLabel);
-          if (typeof total === 'number') {
-            console.log(`Google Account: Optimistic update to ${total} points`);
-            setPointsOverride(total);
-            setActivityOverride(prev => [{ action: activityLabel, points: 20, at: Date.now() }, ...prev]);
-          }
-          await updateLocationInFirebase(locationId, {
-            currentWait: sanitizedWait,
-            crowdLevel,
-            reports: (loc?.reports || 0) + 1,
-            trend: updatedTrend,
-          });
-        } catch (e) {
-          console.error('Report failed:', e);
-        }
-      } else {
-        console.log('Guest Account: Updating local karma');
-        const activityLabel = `Reported ${sanitizedWait} min wait at ${locName}`;
-        setGuestKarma((prev) =>
-          appendGuestKarma(prev, 20, activityLabel)
-        );
-      }
-
-      // Consistent local storage persistence for all account types
       try {
-        const stored = localStorage.getItem('queuejump_local_reports');
-        const localReports = stored ? JSON.parse(stored) : {};
-        localReports[locationId] = {
+        const activityLabel = `Reported ${sanitizedWait} min wait at ${locName}`;
+        const reportId = `${locationId}-${timestamp}`;
+
+        // Show pending karma in activity - waiting for verification
+        setActivityOverride(prev => [{ 
+          action: activityLabel, 
+          points: 20, 
+          at: Date.now(),
+          status: 'pending',
+          reportId: reportId
+        }, ...prev]);
+
+        // Track this report as pending verification
+        setVerificationPending(prev => ({
+          ...prev,
+          [reportId]: { 
+            locationId, 
+            activityLabel,
+            submittedAt: Date.now()
+          }
+        }));
+
+        // Submit report for verification by other users
+        await submitReportWithVerification(locationId, user.uid, sanitizedWait, timestamp);
+
+        // Store report in history for future weighted calculations
+        try {
+          const stored = localStorage.getItem('queuejump_local_reports');
+          const localReports = stored ? JSON.parse(stored) : {};
+          
+          if (!localReports[locationId]) {
+            localReports[locationId] = { waitHistory: [] };
+          }
+          
+          if (!localReports[locationId].waitHistory) {
+            localReports[locationId].waitHistory = [];
+          }
+          localReports[locationId].waitHistory.push({
+            wait: sanitizedWait,
+            timestamp: timestamp
+          });
+          
+          if (localReports[locationId].waitHistory.length > 50) {
+            localReports[locationId].waitHistory = localReports[locationId].waitHistory.slice(-50);
+          }
+          
+          localReports[locationId].currentWait = sanitizedWait;
+          localReports[locationId].crowdLevel = crowdLevel;
+          localReports[locationId].lastUpdated = timestamp;
+          
+          localStorage.setItem('queuejump_local_reports', JSON.stringify(localReports));
+        } catch (e) {
+          console.error('Failed to save report history:', e);
+        }
+
+        // Update location in Firebase with weighted crowd level
+        await updateLocationInFirebase(locationId, {
           currentWait: sanitizedWait,
           crowdLevel,
           reports: (loc?.reports || 0) + 1,
-          lastUpdated: timestamp,
           trend: updatedTrend,
-        };
-        localStorage.setItem('queuejump_local_reports', JSON.stringify(localReports));
+        });
       } catch (e) {
-        console.error('Failed to save local reports:', e);
+        console.error('Report failed:', e);
+        
+        // Keep as pending (show pending instead of failed)
+        setActivityOverride(prev => 
+          prev.map(item => 
+            item.action?.includes(locName)
+              ? { ...item, status: 'pending' }
+              : item
+          )
+        );
       }
     },
     [user?.uid, localLocations]
+  );
+
+  const handleVerifyReport = useCallback(
+    async (locationId, reporterId) => {
+      if (!user?.uid) {
+        console.log('Verification denied: Guest account');
+        return;
+      }
+
+      if (user.uid === reporterId) {
+        console.log('Cannot verify your own report');
+        return;
+      }
+
+      try {
+        const verified = await verifyReportAccuracy(locationId, user.uid);
+        
+        if (verified) {
+          // Report now has enough verifications! Award karma to the reporter
+          const locationName = localLocations.find(l => l.id === locationId)?.name || 'location';
+          const activityLabel = `Crowd report verified at ${locationName}`;
+          
+          // Award karma to original reporter (not the verifier)
+          const total = await addUserKarma(reporterId, 20, activityLabel);
+          console.log(`Report verified! Awarded 20 karma to reporter. New total: ${total}`);
+          
+          // Update pending status to confirmed in activity
+          setActivityOverride(prev => 
+            prev.map(item => {
+              // Find the corresponding pending report and update it
+              if (item.status === 'pending' && item.action?.includes(localLocations.find(l => l.id === locationId)?.name || 'location')) {
+                return { ...item, status: 'confirmed' };
+              }
+              return item;
+            })
+          );
+          
+          // Clear verification pending status
+          setVerificationPending(prev => {
+            const updated = { ...prev };
+            // Find and remove all reports verified for this location
+            Object.keys(updated).forEach(key => {
+              if (updated[key].locationId === locationId) {
+                delete updated[key];
+              }
+            });
+            return updated;
+          });
+        }
+      } catch (e) {
+        console.error('Verification failed:', e);
+      }
+    },
+    [user?.uid, localLocations, verificationPending]
   );
 
   const handleTabChange = useCallback((tab) => {
@@ -463,6 +633,8 @@ export default function App() {
             onClose={handleCloseVibeCard}
             onVerify={handleVerify}
             onGoingNow={handleGoingNow}
+            onVerifyReport={handleVerifyReport}
+            currentUserId={user?.uid}
           />
         )}
       </AnimatePresence>
@@ -473,6 +645,10 @@ export default function App() {
             locations={localLocations}
             onClose={() => handleTabChange('map')}
             onSubmit={handleSubmitReport}
+            isAuthorized={!!user?.uid}
+            onLoginClick={() => {
+              setShowLoginModal(true);
+            }}
           />
         )}
       </AnimatePresence>
@@ -482,6 +658,19 @@ export default function App() {
           <KarmaPanel
             karma={karma}
             onClose={() => handleTabChange('map')}
+          />
+        )}
+      </AnimatePresence>
+
+      <AnimatePresence>
+        {showLoginModal && (
+          <LoginModal
+            onClose={() => setShowLoginModal(false)}
+            onLoginSuccess={(userData) => {
+              setShowLoginModal(false);
+              handleLogin(userData);
+              handleTabChange('report');
+            }}
           />
         )}
       </AnimatePresence>

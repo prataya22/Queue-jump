@@ -66,6 +66,13 @@ function getCrowdLevel(wait) {
   return CROWD_LEVELS.PACKED;
 }
 
+// Helper to generate realistic timestamps
+function getRealisticTimestamp(minutesAgo) {
+  const now = new Date();
+  now.setMinutes(now.getMinutes() - minutesAgo);
+  return now.toISOString();
+}
+
 export const initialLocations = [
   // Campus Locations
   {
@@ -80,7 +87,7 @@ export const initialLocations = [
     reports: 24,
     verifications: 18,
     headingHereNow: 0,
-    lastUpdated: '2 min ago',
+    lastUpdated: getRealisticTimestamp(2),
     accuracy: 87,
     trend: generateTrendData(),
   },
@@ -96,7 +103,7 @@ export const initialLocations = [
     reports: 45,
     verifications: 38,
     headingHereNow: 0,
-    lastUpdated: '1 min ago',
+    lastUpdated: getRealisticTimestamp(1),
     accuracy: 94,
     trend: generateTrendData(),
   },
@@ -112,7 +119,7 @@ export const initialLocations = [
     reports: 31,
     verifications: 22,
     headingHereNow: 0,
-    lastUpdated: '3 min ago',
+    lastUpdated: getRealisticTimestamp(3),
     accuracy: 81,
     trend: generateTrendData(),
   },
@@ -129,7 +136,7 @@ export const initialLocations = [
     reports: 56,
     verifications: 42,
     headingHereNow: 0,
-    lastUpdated: '1 min ago',
+    lastUpdated: getRealisticTimestamp(1),
     accuracy: 90,
     trend: generateTrendData(),
   },
@@ -145,7 +152,7 @@ export const initialLocations = [
     reports: 38,
     verifications: 30,
     headingHereNow: 0,
-    lastUpdated: '2 min ago',
+    lastUpdated: getRealisticTimestamp(2),
     accuracy: 88,
     trend: generateTrendData(),
   },
@@ -161,7 +168,7 @@ export const initialLocations = [
     reports: 67,
     verifications: 55,
     headingHereNow: 0,
-    lastUpdated: '30 sec ago',
+    lastUpdated: getRealisticTimestamp(0.5),
     accuracy: 95,
     trend: generateTrendData(),
   },
@@ -177,7 +184,7 @@ export const initialLocations = [
     reports: 41,
     verifications: 33,
     headingHereNow: 0,
-    lastUpdated: '1 min ago',
+    lastUpdated: getRealisticTimestamp(1),
     accuracy: 86,
     trend: generateTrendData(),
   },
@@ -193,7 +200,7 @@ export const initialLocations = [
     reports: 19,
     verifications: 15,
     headingHereNow: 0,
-    lastUpdated: '4 min ago',
+    lastUpdated: getRealisticTimestamp(4),
     accuracy: 91,
     trend: generateTrendData(),
   },
@@ -209,7 +216,7 @@ export const initialLocations = [
     reports: 29,
     verifications: 21,
     headingHereNow: 0,
-    lastUpdated: '2 min ago',
+    lastUpdated: getRealisticTimestamp(2),
     accuracy: 83,
     trend: generateTrendData(),
   },
@@ -245,7 +252,7 @@ export function simulateLiveUpdate(locations) {
 
   return locations.map((loc) => {
     const delta = Math.floor(Math.random() * 7) - 3; // -3 to +3
-    const newWait = Math.max(0, Math.min(60, loc.currentWait + delta));
+    const newWait = Math.max(0, Math.min(30, loc.currentWait + delta));
     const newCrowdLevel = getCrowdLevel(newWait);
     
     // Naturally decay headingHereNow or randomly pop it up slightly

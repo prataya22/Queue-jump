@@ -52,9 +52,64 @@ const CustomTooltip = ({ active, payload, label }) => {
   return null;
 };
 
-export default function VibeCard({ location, onClose, onVerify, onGoingNow }) {
+// Helper: Find best time ranges (periods with less crowding)
+function findBestTimeWindows(trend) {
+  if (!trend || !Array.isArray(trend) || trend.length === 0) {
+    return [];
+  }
+
+  // Calculate average crowd level
+  const crowdLevels = trend.map(t => t.crowd || 0);
+  const avgLevel = crowdLevels.reduce((a, b) => a + b, 0) / crowdLevels.length;
+  
+  // Find windows 30% below average (less crowded periods)
+  const threshold = avgLevel * 0.7;
+  let windows = [];
+  let currentWindow = null;
+
+  trend.forEach((item, idx) => {
+    if (item.crowd <= threshold) {
+      if (!currentWindow) {
+        currentWindow = { start: item.hour, startIdx: idx, hours: 1 };
+      } else {
+        currentWindow.hours += 1;
+      }
+    } else {
+      if (currentWindow && currentWindow.hours >= 1) {
+        currentWindow.end = trend[idx - 1].hour;
+        windows.push(currentWindow);
+      }
+      currentWindow = null;
+    }
+  });
+
+  if (currentWindow && currentWindow.hours >= 1) {
+    currentWindow.end = trend[trend.length - 1].hour;
+    windows.push(currentWindow);
+  }
+
+  return windows.slice(0, 3); // Return top 3 best windows
+}
+
+// Helper: Format time range in smart way
+function formatTimeRange(startHour, endHour) {
+  const formatHour = (h) => {
+    if (typeof h === 'string') {
+      return h; // Already formatted like "2:00PM"
+    }
+    const hour = parseInt(h);
+    if (hour < 12) return `${hour}:00AM`;
+    if (hour === 12) return '12:00PM';
+    return `${hour - 12}:00PM`;
+  };
+
+  return `${formatHour(startHour)} - ${formatHour(endHour)}`;
+}
+
+export default function VibeCard({ location, onClose, onVerify, onGoingNow, onVerifyReport, currentUserId }) {
   const [verified, setVerified] = useState(false);
   const [going, setGoing] = useState(false);
+  const [reportVerified, setReportVerified] = useState(false);
   const [pendingAction, setPendingAction] = useState(null);
 
   // Success Overlay States
@@ -144,6 +199,126 @@ export default function VibeCard({ location, onClose, onVerify, onGoingNow }) {
               {label}
             </div>
           </div>
+
+          {/* Surge Warning - High visitor count */}
+          {location.headingHereNow >= 5 && location.crowdLevel !== 'closed' && (
+            <motion.div
+              className="surge-warning"
+              initial={{ opacity: 0, y: -10 }}
+              animate={{ opacity: 1, y: 0 }}
+              style={{
+                background: 'rgba(255, 45, 85, 0.15)',
+                borderLeft: '3px solid #FF2D55',
+                padding: '12px',
+                borderRadius: '8px',
+                marginBottom: '12px',
+                display: 'flex',
+                gap: '10px',
+                alignItems: 'center'
+              }}
+            >
+              <span style={{ fontSize: '18px' }}>⚠️</span>
+              <div>
+                <div style={{ fontSize: '12px', fontWeight: '600', color: '#FF2D55' }}>
+                  Incoming Crowd Surge
+                </div>
+                <div style={{ fontSize: '11px', color: 'rgba(255, 45, 85, 0.8)', marginTop: '2px' }}>
+                  {location.headingHereNow} people are planning to visit soon
+                </div>
+              </div>
+            </motion.div>
+          )}
+
+          {/* Best Time to Visit - Smart time ranges */}
+          {location.trend && Array.isArray(location.trend) && location.trend.length > 0 && (
+            (() => {
+              const bestWindows = findBestTimeWindows(location.trend);
+              return bestWindows.length > 0 ? (
+                <motion.div
+                  initial={{ opacity: 0, y: -10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  style={{
+                    background: 'rgba(0, 255, 136, 0.1)',
+                    borderLeft: '3px solid #00FF88',
+                    padding: '12px',
+                    borderRadius: '8px',
+                    marginBottom: '12px'
+                  }}
+                >
+                  <div style={{ fontSize: '12px', fontWeight: '600', color: '#00FF88', marginBottom: '8px' }}>
+                    💡 Optimal Visit Times
+                  </div>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                    {bestWindows.map((window, idx) => (
+                      <div
+                        key={idx}
+                        style={{
+                          fontSize: '11px',
+                          color: 'rgba(0, 255, 136, 0.9)',
+                          background: 'rgba(0, 255, 136, 0.05)',
+                          padding: '6px 8px',
+                          borderRadius: '4px'
+                        }}
+                      >
+                        {formatTimeRange(window.start, window.end)}
+                      </div>
+                    ))}
+                  </div>
+                </motion.div>
+              ) : null;
+            })()
+          )}
+
+          {/* Report Verification Section */}
+          {location.latestReport && !location.latestReport.verified && (
+            <motion.div
+              initial={{ opacity: 0, y: -10 }}
+              animate={{ opacity: 1, y: 0 }}
+              style={{
+                background: 'linear-gradient(135deg, rgba(59, 130, 246, 0.15), rgba(99, 102, 241, 0.1))',
+                borderLeft: '3px solid #3B82F6',
+                padding: '12px',
+                borderRadius: '8px',
+                marginBottom: '12px'
+              }}
+            >
+              <div style={{ fontSize: '12px', fontWeight: '600', color: '#3B82F6', marginBottom: '8px', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                🔍 <span>Report Under Review</span>
+              </div>
+              <div style={{ fontSize: '11px', color: 'rgba(59, 130, 246, 0.9)', marginBottom: '8px' }}>
+                Wait time reported: <span style={{ fontWeight: 600 }}>{location.latestReport.waitTime || 0} min</span>
+              </div>
+              <div style={{ fontSize: '10px', color: 'rgba(59, 130, 246, 0.7)', marginBottom: '10px' }}>
+                Verifications: <span style={{ fontWeight: 600 }}>{location.latestReport.verificationCount || 0} / 2</span>
+              </div>
+              
+              {currentUserId && currentUserId !== location.latestReport.reporterId && (
+                <motion.button
+                  onClick={() => {
+                    onVerifyReport(location.id, location.latestReport.reporterId);
+                    setReportVerified(true);
+                  }}
+                  disabled={reportVerified}
+                  style={{
+                    width: '100%',
+                    padding: '8px',
+                    background: reportVerified ? 'rgba(0, 255, 136, 0.2)' : '#3B82F6',
+                    border: 'none',
+                    borderRadius: '6px',
+                    color: reportVerified ? '#00FF88' : '#FFF',
+                    fontSize: '11px',
+                    fontWeight: '600',
+                    cursor: reportVerified ? 'default' : 'pointer',
+                    opacity: reportVerified ? 0.7 : 1
+                  }}
+                  whileHover={!reportVerified ? { scale: 1.05 } : {}}
+                  whileTap={!reportVerified ? { scale: 0.95 } : {}}
+                >
+                  {reportVerified ? '✅ You Verified' : '👍 I Confirm This'}
+                </motion.button>
+              )}
+            </motion.div>
+          )}
 
           <div className="vibe-stats">
             <div className="vibe-stat">

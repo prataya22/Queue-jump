@@ -2,19 +2,21 @@ import { motion, AnimatePresence } from 'framer-motion';
 
 // Helper to format ISO timestamps into relative strings like "2m ago"
 function formatRelativeTime(isoString) {
-  if (!isoString) return '2 min ago';
+  if (!isoString) return 'No data';
+  if (isoString.includes('undefined')) return 'No data';
   if (isoString.includes('ago')) return isoString; // Handle legacy mock strings
 
   try {
     const past = new Date(isoString);
-    if (isNaN(past.getTime())) return 'just now';
+    if (isNaN(past.getTime())) return 'No data';
     
     const diff = Math.floor((new Date() - past) / 1000);
+    if (diff < 0) return 'No data'; // Future timestamp (wrong data)
     if (diff < 60) return 'just now';
     if (diff < 3600) return `${Math.floor(diff / 60)} min ago`;
     return `${Math.floor(diff / 3600)}h ago`;
   } catch {
-    return 'just now';
+    return 'No data';
   }
 }
 
@@ -63,7 +65,9 @@ export default function LocationList({ locations, filterCategory, searchQuery, o
                 </div>
               </div>
               <div className="loc-updated-label">
-                {formatRelativeTime(loc.lastUpdated)}
+                {!loc.lastUpdated || loc.lastUpdated.includes('undefined')
+                  ? 'No data'
+                  : formatRelativeTime(loc.lastUpdated)}
               </div>
             </div>
 

@@ -32,6 +32,8 @@ export const useRealtimeLocations = () => {
             const mergedArray = initialLocations.map(baseLoc => {
               const dbLoc = rawArray.find(l => l.id === baseLoc.id);
               
+              console.log(`📍 Merging location: ${baseLoc.id} (${baseLoc.name})`, { hasDB: !!dbLoc });
+              
               // Load the user's latest local report from localStorage (Optimistic Persistence)
               let localReport = null;
               try {
