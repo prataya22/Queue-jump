@@ -1,5 +1,23 @@
 import { motion, AnimatePresence } from 'framer-motion';
 
+// Helper to format ISO timestamps into relative strings like "2m ago"
+function formatRelativeTime(isoString) {
+  if (!isoString) return '2 min ago';
+  if (isoString.includes('ago')) return isoString; // Handle legacy mock strings
+
+  try {
+    const past = new Date(isoString);
+    if (isNaN(past.getTime())) return 'just now';
+    
+    const diff = Math.floor((new Date() - past) / 1000);
+    if (diff < 60) return 'just now';
+    if (diff < 3600) return `${Math.floor(diff / 60)} min ago`;
+    return `${Math.floor(diff / 3600)}h ago`;
+  } catch {
+    return 'just now';
+  }
+}
+
 export default function LocationList({ locations, filterCategory, searchQuery, onSelectLocation }) {
   // Apply filtering based on category and search query
   const filteredLocations = locations.filter((loc) => {
@@ -25,11 +43,11 @@ export default function LocationList({ locations, filterCategory, searchQuery, o
           >
             <div className="loc-card-main">
               <div className="loc-card-header">
-                <div className={`loc-icon-wrapper ${loc.crowdLevel}`}>
-                  <span className="loc-icon">{loc.icon}</span>
+                <div className={`loc-icon-wrapper ${loc.crowdLevel || 'empty'}`}>
+                  <span className="loc-icon">{loc.icon || '📍'}</span>
                 </div>
                 <div className="loc-info">
-                  <h3>{loc.name}</h3>
+                  <h3>{loc.name || 'Unknown Location'}</h3>
                   <span className="loc-category">
                     {loc.category === 'fest' ? '🎪 Tech Fest' : '🏫 Campus'}
                   </span>
@@ -40,9 +58,12 @@ export default function LocationList({ locations, filterCategory, searchQuery, o
                 <div className={`loc-wait ${loc.crowdLevel}`}>
                   {loc.crowdLevel === 'closed' ? 'Closed' : `${loc.currentWait}m`}
                 </div>
-                <div className={`loc-status-label ${loc.crowdLevel}`}>
+                <div className={`loc-status-label ${loc.crowdLevel || 'empty'}`}>
                   {loc.crowdLevel}
                 </div>
+              </div>
+              <div className="loc-updated-label">
+                {formatRelativeTime(loc.lastUpdated)}
               </div>
             </div>
 

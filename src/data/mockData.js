@@ -224,28 +224,6 @@ export const reportPresets = [
   { id: 'clearing', label: 'Clearing out', emoji: '🏃', impact: -8 },
 ];
 
-export const initialKarma = {
-  points: 420,
-  level: 3,
-  levelName: 'Campus Scout',
-  nextLevel: 500,
-  badges: [
-    { id: 'reporter', name: 'First Reporter', icon: '📡', earned: true, desc: 'Made your first crowd report' },
-    { id: 'verifier', name: 'Verifier', icon: '✅', earned: true, desc: 'Verified 10 crowd levels' },
-    { id: 'hero', name: 'Campus Hero', icon: '🦸', earned: false, desc: 'Help 50 people skip the queue' },
-    { id: 'streak', name: 'Streak Master', icon: '🔥', earned: true, desc: '7-day reporting streak' },
-
-    { id: 'pioneer', name: 'Pioneer', icon: '🚀', earned: false, desc: 'First to report at a new location' },
-  ],
-  recentActivity: [
-    { action: 'Reported crowd at Canteen', points: 10, at: Date.now() - 5 * 60 * 1000 },
-    { action: 'Verified Library status', points: 5, at: Date.now() - 12 * 60 * 1000 },
-    { action: 'Reported at Gaming Zone', points: 10, at: Date.now() - 60 * 60 * 1000 },
-    { action: 'Earned "Streak Master" badge', points: 25, at: Date.now() - 2 * 60 * 60 * 1000 },
-    { action: 'Verified Robotics Arena', points: 5, at: Date.now() - 3 * 60 * 60 * 1000 },
-  ],
-};
-
 // Apply operating hours — marks all locations as closed outside 10 AM – 6 PM
 export function applyOperatingHours(locations) {
   if (isCollegeOpen()) return locations;

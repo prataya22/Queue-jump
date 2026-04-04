@@ -22,10 +22,11 @@ export default function ReportFlow({ locations, onClose, onSubmit }) {
       waitTime,
       preset: selectedPreset,
     });
-    setTimeout(() => {
-      setShowSuccess(false);
-      onClose();
-    }, 2000);
+  };
+
+  const handleCloseSuccess = () => {
+    setShowSuccess(false);
+    onClose();
   };
 
   const sliderColor = getSliderColor();
@@ -129,7 +130,7 @@ export default function ReportFlow({ locations, onClose, onSubmit }) {
             {!isCollegeOpen() 
               ? '🚫 College is closed' 
               : selectedLocation 
-                ? 'Submit Report → +10 Karma' 
+                ? 'Submit Report → +20 Karma' 
                 : 'Select a location first'}
           </motion.button>
         </div>
@@ -145,6 +146,9 @@ export default function ReportFlow({ locations, onClose, onSubmit }) {
             exit={{ opacity: 0 }}
             transition={{ duration: 0.3 }}
           >
+            <button className="success-close" onClick={handleCloseSuccess}>
+              ✕
+            </button>
             <motion.div
               className="success-icon"
               initial={{ scale: 0, rotate: -180 }}
@@ -167,7 +171,7 @@ export default function ReportFlow({ locations, onClose, onSubmit }) {
               animate={{ y: 0, opacity: 1 }}
               transition={{ delay: 0.3 }}
             >
-              +10 Karma Points
+              +20 Karma Points
             </motion.div>
             <motion.div
               className="success-sub"

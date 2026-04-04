@@ -234,7 +234,13 @@ export default function LoginScreen({ onLogin }) {
               className="login-social-btn"
               onClick={() => {
                 setLoading(true);
-                setTimeout(() => onLogin({ name: 'Demo User', email: 'demo@techfest.edu', college: 'Tech Fest 2026' }), 800);
+                // Guest Demo always starts with 0 karma as requested
+                setTimeout(() => onLogin({ 
+                  name: 'Demo User', 
+                  email: 'demo@techfest.edu', 
+                  college: 'Tech Fest 2026',
+                  isGuest: true 
+                }), 800);
               }}
             >
               <span style={{ fontSize: '18px', marginRight: '8px' }}>🎪</span>

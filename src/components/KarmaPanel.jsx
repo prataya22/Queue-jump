@@ -5,7 +5,7 @@ import { formatRelativeTime } from '../utils/time';
 export default function KarmaPanel({ karma, onClose }) {
   const [, setTick] = useState(0);
   const progressPercent = ((karma.points % 100) / 100) * 100;
-  const toNext = karma.nextLevel - karma.points;
+  const toNext = Math.max(0, karma.nextLevel - karma.points);
 
   useEffect(() => {
     const id = setInterval(() => setTick((t) => t + 1), 15000);

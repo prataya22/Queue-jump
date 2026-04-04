@@ -50,20 +50,23 @@ export const addUserKarma = async (userId, points, action) => {
   try {
     const userRef = ref(database, `users/${userId}`);
     const timestamp = new Date().toISOString();
+    const safeKey = timestamp.replace(/\./g, '_'); // Replace dots with underscores for Firebase keys
+    let nextTotal = 0;
 
-    await runTransaction(userRef, (current) => {
+    const result = await runTransaction(userRef, (current) => {
       if (current === null) {
+        nextTotal = points;
         return {
           id: userId,
           karmaPoint: points,
           karma: { points, level: 'novice' },
           lastActivity: timestamp,
-          activity: { [timestamp]: { action, points } },
+          activity: { [safeKey]: { action, points } },
         };
       }
       const prev = current.karma?.points ?? current.karmaPoint ?? 0;
-      const next = prev + points;
-      const activity = { ...(current.activity || {}), [timestamp]: { action, points } };
+      nextTotal = prev + points;
+      const activity = { ...(current.activity || {}), [safeKey]: { action, points } };
       const keys = Object.keys(activity).sort();
       if (keys.length > MAX_ACTIVITY_KEYS) {
         keys.slice(0, keys.length - MAX_ACTIVITY_KEYS).forEach((k) => {
@@ -72,13 +75,20 @@ export const addUserKarma = async (userId, points, action) => {
       }
       return {
         ...current,
-        karmaPoint: next,
-        karma: { ...(current.karma || {}), points: next },
+        karmaPoint: nextTotal,
+        karma: { ...(current.karma || {}), points: nextTotal },
         lastActivity: timestamp,
         activity,
       };
     });
-    console.log(`Added ${points} karma points to user ${userId}`);
+
+    if (result.committed) {
+      console.log(`Success: Added ${points} karma to user ${userId}. New total: ${nextTotal}`);
+      return nextTotal;
+    } else {
+      console.warn('Transaction not committed');
+      throw new Error('Transaction aborted');
+    }
   } catch (error) {
     console.error('Error adding karma:', error);
     throw error;
@@ -108,6 +118,7 @@ export const initializeNewUser = async (userId, userData) => {
         },
         createdAt: new Date().toISOString(),
         lastActivity: new Date().toISOString(),
+        activity: {},
       });
       console.log(`Initialized new user ${userId} with 0 karma points`);
     } else {
@@ -132,6 +143,7 @@ export const verifyLocationCrowd = async (locationId) => {
       await update(locationRef, {
         verifications,
         lastVerifiedAt: new Date().toISOString(),
+        lastUpdated: new Date().toISOString(),
       });
     }
   } catch (error) {

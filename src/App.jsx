@@ -7,7 +7,7 @@ import ReportFlow from './components/ReportFlow';
 import KarmaPanel from './components/KarmaPanel';
 import NavBar from './components/NavBar';
 import { useRealtimeLocations, useRealtimeUserData } from './hooks/useRealtimeLocations';
-import { initialKarma, isCollegeOpen } from './data/mockData';
+import { isCollegeOpen } from './data/mockData';
 import {
   addUserKarma,
   verifyLocationCrowd,
@@ -16,21 +16,88 @@ import {
 } from './utils/firebaseOperations';
 import {
   buildKarmaDisplayFromFirebase,
-  emptyKarmaPlaceholder,
+  createGuestKarmaState,
+  appendGuestKarma,
+  tierForPoints,
+  computeBadges,
 } from './utils/karmaDisplay';
+
+// Helper to format ISO timestamps into relative strings like "2m ago"
+function formatRelativeTime(isoString) {
+  if (!isoString) return '2 min ago';
+  if (isoString.includes('ago')) return isoString; // Handle legacy mock strings
+
+  try {
+    const past = new Date(isoString);
+    if (isNaN(past.getTime())) return 'just now';
+    
+    const diff = Math.floor((new Date() - past) / 1000);
+    if (diff < 60) return 'just now';
+    if (diff < 3600) return `${Math.floor(diff / 60)} min ago`;
+    return `${Math.floor(diff / 3600)}h ago`;
+  } catch {
+    return 'just now';
+  }
+}
 
 export default function App() {
   const [user, setUser] = useState(null);
   const { locations } = useRealtimeLocations();
   const [localLocations, setLocalLocations] = useState(locations);
-  const [guestKarma, setGuestKarma] = useState(initialKarma);
+  const [guestKarma, setGuestKarma] = useState(() => createGuestKarmaState());
+  /** After a write, server total so UI updates even if the listener lags. Cleared when RTDB matches. */
+  const [pointsOverride, setPointsOverride] = useState(null);
+  const [activityOverride, setActivityOverride] = useState([]);
   const { userData } = useRealtimeUserData(user?.uid);
 
+  useEffect(() => {
+    if (!user?.uid || userData == null || pointsOverride == null) return;
+    const p = userData.karma?.points ?? userData.karmaPoint;
+    if (typeof p === 'number' && p === pointsOverride) {
+      setPointsOverride(null);
+      setActivityOverride([]);
+    }
+  }, [user?.uid, userData, pointsOverride]);
+
   const karma = useMemo(() => {
+    // Guest persistence is now handled by createGuestKarmaState/localStorage
     if (!user?.uid) return guestKarma;
-    if (!userData) return emptyKarmaPlaceholder();
-    return buildKarmaDisplayFromFirebase(userData);
-  }, [user?.uid, userData, guestKarma]);
+
+    // Use a super-safe fallback to prevent "black screen" during transitions
+    const safeFallback = {
+      points: pointsOverride ?? 0,
+      ...tierForPoints(pointsOverride ?? 0),
+      badges: computeBadges(pointsOverride ?? 0, activityOverride || []),
+      recentActivity: activityOverride || [],
+    };
+
+    if (!userData) return safeFallback;
+
+    try {
+      const k = buildKarmaDisplayFromFirebase(userData);
+      const displayPoints = pointsOverride != null ? pointsOverride : (k?.points ?? 0);
+      const tier = tierForPoints(displayPoints);
+      
+      // Defensively merge activities
+      const firebaseRecent = Array.isArray(k?.recentActivity) ? k.recentActivity : [];
+      const overrideRecent = Array.isArray(activityOverride) ? activityOverride : [];
+      
+      const displayActivity = overrideRecent.length > 0 
+        ? [...overrideRecent, ...firebaseRecent].slice(0, 20)
+        : firebaseRecent;
+
+      return {
+        ...k,
+        ...tier,
+        points: displayPoints,
+        badges: computeBadges(displayPoints, displayActivity),
+        recentActivity: displayActivity,
+      };
+    } catch (e) {
+      console.error('Karma calculation Error:', e);
+      return safeFallback;
+    }
+  }, [user?.uid, userData, guestKarma, pointsOverride, activityOverride]);
 
   const [activeTab, setActiveTab] = useState('map');
   const [selectedLocationId, setSelectedLocationId] = useState(null);
@@ -43,12 +110,16 @@ export default function App() {
 
   const handleLogin = useCallback((userData) => {
     setUser(userData);
+    setPointsOverride(null);
   }, []);
 
   const handleLogout = useCallback(() => {
     setUser(null);
     setActiveTab('map');
     setSelectedLocationId(null);
+    setPointsOverride(null);
+    setActivityOverride([]);
+    // Note: guestKarma is NOT reset here because the user wants it to persist
   }, []);
 
   const handleSelectLocation = useCallback((loc) => {
@@ -61,130 +132,200 @@ export default function App() {
 
   const handleVerify = useCallback(
     async (locationId) => {
-      let locName = 'location';
+      // Find the location name BEFORE async operations to avoid state update delays
+      const loc = localLocations.find(l => l.id === locationId);
+      const locName = loc?.name || 'location';
+      console.log(`Verifying crowd for: ${locName}`);
+
       setLocalLocations((prev) => {
-        const found = prev.find((l) => l.id === locationId);
-        locName = found?.name || 'location';
-        return prev.map((loc) =>
-          loc.id === locationId
-            ? { ...loc, verifications: loc.verifications + 1 }
-            : loc
+        return prev.map((locItem) =>
+          locItem.id === locationId
+            ? { ...locItem, verifications: (locItem.verifications || 0) + 1 }
+            : locItem
         );
       });
 
       if (user?.uid) {
         try {
-          await Promise.all([
-            addUserKarma(user.uid, 5, `Verified crowd at ${locName}`),
-            verifyLocationCrowd(locationId),
-          ]);
+          const activityLabel = `Confirmed crowd status at ${locName}`;
+          const total = await addUserKarma(user.uid, 10, activityLabel);
+          if (typeof total === 'number') {
+            console.log(`Google Account: Optimistic update to ${total} points`);
+            setPointsOverride(total);
+            setActivityOverride(prev => [{ action: activityLabel, points: 10, at: Date.now() }, ...prev]);
+          }
+          await verifyLocationCrowd(locationId);
         } catch (e) {
-          console.error(e);
+          console.error('Verify failed:', e);
         }
       } else {
-        setGuestKarma((prev) => ({
-          ...prev,
-          points: prev.points + 5,
-          recentActivity: [
-            { action: `Verified crowd at ${locName}`, points: 5, at: Date.now() },
-            ...prev.recentActivity.slice(0, 4),
-          ],
-        }));
+        console.log('Guest Account: Updating local karma');
+        setGuestKarma((prev) =>
+          appendGuestKarma(prev, 10, `Confirmed crowd status at ${locName}`)
+        );
+      }
+
+      // Consistent local storage persistence for all account types
+      try {
+        const stored = localStorage.getItem('queuejump_local_reports');
+        const localReports = stored ? JSON.parse(stored) : {};
+        localReports[locationId] = {
+          verifications: (loc?.verifications || 0) + 1,
+          lastUpdated: new Date().toISOString(),
+        };
+        localStorage.setItem('queuejump_local_reports', JSON.stringify(localReports));
+      } catch (e) {
+        console.error('Failed to save local reports:', e);
       }
     },
-    [user?.uid]
+    [user?.uid, localLocations]
   );
 
   const handleGoingNow = useCallback(
     async (locationId) => {
-      let locName = 'location';
+      const loc = localLocations.find(l => l.id === locationId);
+      const locName = loc?.name || 'location';
+      console.log(`Marking "Heading Here" for: ${locName}`);
+
       setLocalLocations((prev) => {
-        const found = prev.find((l) => l.id === locationId);
-        locName = found?.name || 'location';
-        return prev.map((loc) =>
-          loc.id === locationId
-            ? { ...loc, headingHereNow: (loc.headingHereNow || 0) + 1 }
-            : loc
+        return prev.map((locItem) =>
+          locItem.id === locationId
+            ? { ...locItem, headingHereNow: (locItem.headingHereNow || 0) + 1 }
+            : locItem
         );
       });
 
       if (user?.uid) {
         try {
-          await Promise.all([
-            addUserKarma(user.uid, 5, `Heading to ${locName}`),
-            incrementHeadingHere(locationId),
-          ]);
+          const activityLabel = `Heading to ${locName}`;
+          const total = await addUserKarma(user.uid, 10, activityLabel);
+          if (typeof total === 'number') {
+            console.log(`Google Account: Optimistic update to ${total} points`);
+            setPointsOverride(total);
+            setActivityOverride(prev => [{ action: activityLabel, points: 10, at: Date.now() }, ...prev]);
+          }
+          await incrementHeadingHere(locationId);
         } catch (e) {
-          console.error(e);
+          console.error('Heading failed:', e);
         }
       } else {
-        setGuestKarma((prev) => ({
-          ...prev,
-          points: prev.points + 5,
-          recentActivity: [
-            { action: `Heading to ${locName}`, points: 5, at: Date.now() },
-            ...prev.recentActivity.slice(0, 4),
-          ],
-        }));
+        console.log('Guest Account: Updating local karma');
+        setGuestKarma((prev) =>
+          appendGuestKarma(prev, 10, `Heading to ${locName}`)
+        );
+      }
+
+      // Consistent local storage persistence for all account types
+      try {
+        const stored = localStorage.getItem('queuejump_local_reports');
+        const localReports = stored ? JSON.parse(stored) : {};
+        localReports[locationId] = {
+          headingHereNow: (loc?.headingHereNow || 0) + 1,
+          lastUpdated: new Date().toISOString(),
+        };
+        localStorage.setItem('queuejump_local_reports', JSON.stringify(localReports));
+      } catch (e) {
+        console.error('Failed to save local reports:', e);
       }
     },
-    [user?.uid]
+    [user?.uid, localLocations]
   );
 
   const handleSubmitReport = useCallback(
     async ({ locationId, waitTime }) => {
-      let locName = 'location';
-      let prevReports = 0;
+      // 1. Validation (Ensures user gives correct data as requested)
+      const sanitizedWait = Math.max(0, Math.min(60, Number(waitTime)));
+      
+      if (!Array.isArray(localLocations)) return;
+      const loc = localLocations.find(l => l.id === locationId);
+      const locName = loc?.name || 'location';
+      const prevReports = loc?.reports ?? 0;
+      const timestamp = new Date().toISOString();
+      
+      console.log(`Submitting wait report: ${sanitizedWait} min for ${locName}`);
+
       const crowdLevel =
         !isCollegeOpen()
           ? 'closed'
-          : waitTime <= 10
+          : sanitizedWait <= 10
             ? 'empty'
-            : waitTime <= 25
+            : sanitizedWait <= 25
               ? 'moderate'
               : 'packed';
 
+      // 2. Simple Prediction: Update the trend chart to reflect the NEW report immediately
+      const updatedTrend = loc?.trend ? [...loc.trend] : [];
+      const currentHour = new Date().getHours();
+      const trendIndex = updatedTrend.findIndex(t => {
+        const hourStr = t.hour.includes('AM') ? parseInt(t.hour) : parseInt(t.hour) + 12;
+        return hourStr === currentHour;
+      });
+      if (trendIndex !== -1) {
+        // Map 0-60 wait time to 0-100 crowd intensity prediction
+        updatedTrend[trendIndex].crowd = Math.round((sanitizedWait / 60) * 100);
+      }
+
       setLocalLocations((prev) => {
-        const loc = prev.find((l) => l.id === locationId);
-        locName = loc?.name || 'location';
-        prevReports = loc?.reports ?? 0;
+        if (!Array.isArray(prev)) return prev;
         return prev.map((locItem) =>
           locItem.id === locationId
             ? {
                 ...locItem,
-                currentWait: waitTime,
+                currentWait: sanitizedWait,
                 crowdLevel,
                 reports: (locItem.reports || 0) + 1,
-                lastUpdated: 'just now',
+                lastUpdated: timestamp, // Save actual ISO timestamp
+                trend: updatedTrend,     // Save updated prediction
               }
             : locItem
         );
       });
-      setActiveTab('map');
+      // Removed immediate tab change to manual dismissal of success overlay
+
 
       if (user?.uid) {
         try {
-          await addUserKarma(user.uid, 10, `Reported crowd at ${locName}`);
+          const activityLabel = `Reported ${sanitizedWait} min wait at ${locName}`;
+          const total = await addUserKarma(user.uid, 20, activityLabel);
+          if (typeof total === 'number') {
+            console.log(`Google Account: Optimistic update to ${total} points`);
+            setPointsOverride(total);
+            setActivityOverride(prev => [{ action: activityLabel, points: 20, at: Date.now() }, ...prev]);
+          }
           await updateLocationInFirebase(locationId, {
-            currentWait: waitTime,
+            currentWait: sanitizedWait,
             crowdLevel,
-            reports: prevReports + 1,
+            reports: (loc?.reports || 0) + 1,
+            trend: updatedTrend,
           });
         } catch (e) {
-          console.error(e);
+          console.error('Report failed:', e);
         }
       } else {
-        setGuestKarma((prev) => ({
-          ...prev,
-          points: prev.points + 10,
-          recentActivity: [
-            { action: `Reported crowd at ${locName}`, points: 10, at: Date.now() },
-            ...prev.recentActivity.slice(0, 4),
-          ],
-        }));
+        console.log('Guest Account: Updating local karma');
+        const activityLabel = `Reported ${sanitizedWait} min wait at ${locName}`;
+        setGuestKarma((prev) =>
+          appendGuestKarma(prev, 20, activityLabel)
+        );
+      }
+
+      // Consistent local storage persistence for all account types
+      try {
+        const stored = localStorage.getItem('queuejump_local_reports');
+        const localReports = stored ? JSON.parse(stored) : {};
+        localReports[locationId] = {
+          currentWait: sanitizedWait,
+          crowdLevel,
+          reports: (loc?.reports || 0) + 1,
+          lastUpdated: timestamp,
+          trend: updatedTrend,
+        };
+        localStorage.setItem('queuejump_local_reports', JSON.stringify(localReports));
+      } catch (e) {
+        console.error('Failed to save local reports:', e);
       }
     },
-    [user?.uid]
+    [user?.uid, localLocations]
   );
 
   const handleTabChange = useCallback((tab) => {
@@ -193,7 +334,43 @@ export default function App() {
   }, []);
 
   useEffect(() => {
-    setLocalLocations(locations);
+    setLocalLocations((prev) => {
+      if (!Array.isArray(prev)) return locations;
+      
+      return locations.map(dbLoc => {
+        const localLoc = prev.find(l => l.id === dbLoc.id);
+        if (!localLoc) return dbLoc;
+        
+        // Helper to get raw timestamp
+        const getMs = (val) => {
+          if (!val) return 0;
+          if (val.includes('ago') || val.includes('now')) return Date.now() - 60000; // Mock data is older
+          try {
+            const d = new Date(val);
+            return isNaN(d.getTime()) ? 0 : d.getTime();
+          } catch { return 0; }
+        };
+
+        const dbTime = getMs(dbLoc.lastUpdated);
+        const localTime = getMs(localLoc.lastUpdated);
+
+        // If local update is newer (or database update hasn't reached yet), preserve local
+        if (localTime > dbTime) {
+          return {
+            ...dbLoc,
+            currentWait: localLoc.currentWait,
+            crowdLevel: localLoc.crowdLevel,
+            reports: localLoc.reports,
+            trend: localLoc.trend,
+            lastUpdated: localLoc.lastUpdated,
+            // Keep DB's verifications/headingHere as they might have updated from others
+            verifications: Math.max(dbLoc.verifications || 0, localLoc.verifications || 0),
+            headingHereNow: Math.max(dbLoc.headingHereNow || 0, localLoc.headingHereNow || 0),
+          };
+        }
+        return dbLoc;
+      });
+    });
   }, [locations]);
 
   if (!user) {

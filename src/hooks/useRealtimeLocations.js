@@ -24,10 +24,51 @@ export const useRealtimeLocations = () => {
           if (snapshot.exists()) {
             const data = snapshot.val();
             // Convert object to array if needed
-            const locationsArray = Array.isArray(data)
+            const rawArray = Array.isArray(data)
               ? data
               : Object.values(data);
-            setLocations(locationsArray);
+            
+            // Merge Firebase data with initialLocations to ensure no missing icons/names/trends
+            const mergedArray = initialLocations.map(baseLoc => {
+              const dbLoc = rawArray.find(l => l.id === baseLoc.id);
+              
+              // Load the user's latest local report from localStorage (Optimistic Persistence)
+              let localReport = null;
+              try {
+                const stored = localStorage.getItem('queuejump_local_reports');
+                if (stored) {
+                  const reports = JSON.parse(stored);
+                  localReport = reports[baseLoc.id];
+                }
+              } catch (e) {}
+
+              // Helper for safe timestamp comparison
+              const getTime = (val) => {
+                if (!val) return 0;
+                if (typeof val === 'string' && (val.includes('ago') || val.includes('now'))) return 0; // Mock data is older
+                const d = new Date(val);
+                return isNaN(d.getTime()) ? 0 : d.getTime();
+              };
+
+              // Choose the most recent data (Database vs Local Report)
+              let chosen = dbLoc || baseLoc;
+              const dbTime = getTime(dbLoc?.lastUpdated);
+              const localTime = getTime(localReport?.lastUpdated);
+
+              if (localReport && localTime > dbTime) {
+                chosen = { ...baseLoc, ...dbLoc, ...localReport };
+              } else if (dbLoc) {
+                chosen = { ...baseLoc, ...dbLoc };
+              }
+
+              return {
+                ...chosen,
+                // Ensure trend is always an array to prevent chart crashes
+                trend: chosen.trend || baseLoc.trend || []
+              };
+            });
+
+            setLocations(mergedArray);
             setError(null);
           } else {
             console.warn('No locations data in database, using mock data');
