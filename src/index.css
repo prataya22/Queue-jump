@@ -648,9 +648,11 @@ body {
 }
 
 .trend-chart-container {
-  height: 120px;
+  height: 200px;
   border-radius: var(--radius-md);
-  overflow: hidden;
+  overflow: visible;
+  display: flex;
+  align-items: stretch;
 }
 
 /* Verify Button */
@@ -1271,12 +1273,19 @@ body {
   border-radius: var(--radius-md);
   background: rgba(255, 255, 255, 0.03);
   border: 1px solid rgba(255, 255, 255, 0.04);
+  flex-wrap: wrap;
+  gap: 8px;
+  min-width: 0;
 }
 
 .activity-text {
   font-size: 13px;
   color: var(--text-primary);
   font-weight: 500;
+  flex: 1;
+  min-width: 0;
+  word-wrap: break-word;
+  overflow-wrap: break-word;
 }
 
 .loc-card-status {
@@ -1302,6 +1311,16 @@ body {
 .activity-time {
   font-size: 10px;
   color: var(--text-tertiary);
+  white-space: nowrap;
+}
+
+.activity-meta {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+  min-width: 0;
 }
 
 /* ===== NAVBAR ===== */

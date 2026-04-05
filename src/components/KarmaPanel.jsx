@@ -189,9 +189,9 @@ export default function KarmaPanel({ karma, onClose }) {
                     ✅ {item.action}
                   </span>
                 </div>
-                <div className="activity-meta" style={{ marginTop: '6px', display: 'flex', justifyContent: 'space-between' }}>
-                  <span className="activity-points" style={{ fontWeight: '600', color: '#00FF88' }}>+{item.points}</span>
-                  <span className="activity-time">{activityTime(item)}</span>
+                <div className="activity-meta" style={{ marginTop: '6px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '12px', flexWrap: 'wrap' }}>
+                  <span className="activity-points" style={{ fontWeight: '600', color: '#00FF88', whiteSpace: 'nowrap' }}>+{item.points}</span>
+                  <span className="activity-time" style={{ whiteSpace: 'nowrap' }}>{activityTime(item)}</span>
                 </div>
               </motion.div>
             ))

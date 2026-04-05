@@ -22,7 +22,7 @@ export const BADGE_DEFINITIONS = [
     icon: '📡',
     desc: 'Made your first crowd report',
     isEarned: (points, acts) =>
-      acts.some((a) => String(a.action).includes('Reported crowd')),
+      acts.some((a) => String(a.action).includes('Reported') && String(a.action).includes('wait at')),
   },
   {
     id: 'verifier',
@@ -30,7 +30,7 @@ export const BADGE_DEFINITIONS = [
     icon: '✅',
     desc: 'Verified 10 crowd levels',
     isEarned: (points, acts) =>
-      acts.filter((a) => String(a.action).includes('Verified crowd')).length >= 10,
+      acts.filter((a) => String(a.action).includes('Confirmed crowd status')).length >= 10,
   },
   {
     id: 'hero',
@@ -56,9 +56,12 @@ export const BADGE_DEFINITIONS = [
 ];
 
 export function computeBadges(points, activities) {
+  // Ensure activities is an array
+  const safeActivities = Array.isArray(activities) ? activities : [];
+  
   return BADGE_DEFINITIONS.map((def) => ({
     ...def,
-    earned: points > 0 ? def.isEarned(points, activities) : false,
+    earned: def.isEarned(points, safeActivities),
   }));
 }
 
