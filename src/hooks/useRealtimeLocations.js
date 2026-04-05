@@ -8,7 +8,7 @@ import { applyOperatingHours, initialLocations } from '../data/mockData';
  * Falls back to mock data if database is unavailable
  */
 export const useRealtimeLocations = () => {
-  const [locations, setLocations] = useState(() => applyOperatingHours(initialLocations));
+  const [locations, setLocations] = useState(() => initialLocations);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
@@ -25,15 +25,14 @@ export const useRealtimeLocations = () => {
             const data = snapshot.val();
             // Convert object to array if needed
             const rawArray = Array.isArray(data)
-              ? data
-              : Object.values(data);
+            ? data
+            : Object.entries(data).map(([key, val]) => ({ ...val, id: key }));
+
             
-            // Merge Firebase data with initialLocations to ensure no missing icons/names/trends
+
             const mergedArray = initialLocations.map(baseLoc => {
-              const dbLoc = rawArray.find(l => l.id === baseLoc.id);
-              
-              console.log(`📍 Merging location: ${baseLoc.id} (${baseLoc.name})`, { hasDB: !!dbLoc });
-              
+            const dbLoc = rawArray.find(l => l.id === baseLoc.id);
+            
               // Load the user's latest local report from localStorage (Optimistic Persistence)
               let localReport = null;
               try {
@@ -51,16 +50,17 @@ export const useRealtimeLocations = () => {
                 const d = new Date(val);
                 return isNaN(d.getTime()) ? 0 : d.getTime();
               };
-
-              // Choose the most recent data (Database vs Local Report)
               let chosen = dbLoc || baseLoc;
               const dbTime = getTime(dbLoc?.lastUpdated);
               const localTime = getTime(localReport?.lastUpdated);
 
-              if (localReport && localTime > dbTime) {
-                chosen = { ...baseLoc, ...dbLoc, ...localReport };
-              } else if (dbLoc) {
-                chosen = { ...baseLoc, ...dbLoc };
+             if (dbLoc) {
+               chosen = { ...baseLoc, ...dbLoc };
+              }
+
+             // Always take headingHereNow from Firebase directly
+              if (dbLoc?.headingHereNow != null) {
+               chosen = { ...chosen, headingHereNow: dbLoc.headingHereNow };
               }
 
               return {
@@ -74,7 +74,7 @@ export const useRealtimeLocations = () => {
             setError(null);
           } else {
             console.warn('No locations data in database, using mock data');
-            setLocations(applyOperatingHours(initialLocations));
+            setLocations(initialLocations);
           }
           setLoading(false);
         },

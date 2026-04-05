@@ -17,6 +17,7 @@ export const CROWD_COLORS = {
   moderate: '#FFB800',
   packed: '#FF2D55',
   closed: '#666666',
+  unknown: '#444444',
 };
 
 export const CROWD_LABELS = {
@@ -24,6 +25,7 @@ export const CROWD_LABELS = {
   moderate: 'Moderate',
   packed: 'Packed',
   closed: 'Closed',
+  unknown: 'No Data Yet',
 };
 
 // Check if the college is currently open
@@ -82,10 +84,10 @@ export const initialLocations = [
     category: 'campus',
     x: 25,
     y: 30,
-    currentWait: 15,
-    crowdLevel: 'moderate',
-    reports: 24,
-    verifications: 18,
+    currentWait: null,
+    crowdLevel: 'unknown',
+    reports: 0,
+    verifications: 0,
     headingHereNow: 0,
     lastUpdated: getRealisticTimestamp(2),
     accuracy: 87,
@@ -98,10 +100,10 @@ export const initialLocations = [
     category: 'campus',
     x: 50,
     y: 55,
-    currentWait: 30,
-    crowdLevel: 'packed',
-    reports: 45,
-    verifications: 38,
+    currentWait: null,
+    crowdLevel: 'unknown',
+    reports: 0,
+    verifications: 0,
     headingHereNow: 0,
     lastUpdated: getRealisticTimestamp(1),
     accuracy: 94,
@@ -114,10 +116,10 @@ export const initialLocations = [
     category: 'campus',
     x: 15,
     y: 70,
-    currentWait: 20,
-    crowdLevel: 'moderate',
-    reports: 31,
-    verifications: 22,
+    currentWait: null,
+    crowdLevel: 'unknown',
+    reports: 0,
+    verifications: 0,
     headingHereNow: 0,
     lastUpdated: getRealisticTimestamp(3),
     accuracy: 81,
@@ -131,10 +133,10 @@ export const initialLocations = [
     category: 'fest',
     x: 40,
     y: 18,
-    currentWait: 35,
-    crowdLevel: 'packed',
-    reports: 56,
-    verifications: 42,
+    currentWait: null,
+    crowdLevel: 'unknown',
+    reports: 0,
+    verifications: 0,
     headingHereNow: 0,
     lastUpdated: getRealisticTimestamp(1),
     accuracy: 90,
@@ -147,10 +149,10 @@ export const initialLocations = [
     category: 'fest',
     x: 62,
     y: 45,
-    currentWait: 25,
-    crowdLevel: 'moderate',
-    reports: 38,
-    verifications: 30,
+    currentWait: null,
+    crowdLevel: 'unknown',
+    reports: 0,
+    verifications: 0,
     headingHereNow: 0,
     lastUpdated: getRealisticTimestamp(2),
     accuracy: 88,
@@ -163,10 +165,10 @@ export const initialLocations = [
     category: 'fest',
     x: 80,
     y: 60,
-    currentWait: 40,
-    crowdLevel: 'packed',
-    reports: 67,
-    verifications: 55,
+    currentWait: null,
+    crowdLevel: 'unknown',
+    reports: 0,
+    verifications: 0,
     headingHereNow: 0,
     lastUpdated: getRealisticTimestamp(0.5),
     accuracy: 95,
@@ -179,10 +181,10 @@ export const initialLocations = [
     category: 'fest',
     x: 30,
     y: 78,
-    currentWait: 22,
-    crowdLevel: 'moderate',
-    reports: 41,
-    verifications: 33,
+    currentWait: null,
+    crowdLevel: 'unknown',
+    reports: 0,
+    verifications: 0,
     headingHereNow: 0,
     lastUpdated: getRealisticTimestamp(1),
     accuracy: 86,
@@ -195,10 +197,10 @@ export const initialLocations = [
     category: 'fest',
     x: 55,
     y: 85,
-    currentWait: 8,
-    crowdLevel: 'empty',
-    reports: 19,
-    verifications: 15,
+   currentWait: null,
+   crowdLevel: 'unknown',
+    reports: 0,
+    verifications: 0,
     headingHereNow: 0,
     lastUpdated: getRealisticTimestamp(4),
     accuracy: 91,
@@ -211,10 +213,10 @@ export const initialLocations = [
     category: 'fest',
     x: 85,
     y: 35,
-    currentWait: 18,
-    crowdLevel: 'moderate',
-    reports: 29,
-    verifications: 21,
+    currentWait: null,
+    crowdLevel: 'unknown',
+    reports: 0,
+    verifications: 0,
     headingHereNow: 0,
     lastUpdated: getRealisticTimestamp(2),
     accuracy: 83,
@@ -242,31 +244,4 @@ export function applyOperatingHours(locations) {
     crowdLevel: 'closed',
     lastUpdated: getClosedMessage(),
   }));
-}
-
-// Simulate live updates (only updates when college is open)
-export function simulateLiveUpdate(locations) {
-  if (!isCollegeOpen()) {
-    return applyOperatingHours(locations);
-  }
-
-  return locations.map((loc) => {
-    const delta = Math.floor(Math.random() * 7) - 3; // -3 to +3
-    const newWait = Math.max(0, Math.min(30, loc.currentWait + delta));
-    const newCrowdLevel = getCrowdLevel(newWait);
-    
-    // Naturally decay headingHereNow or randomly pop it up slightly
-    const intentDelta = Math.random() > 0.8 ? 1 : Math.random() > 0.5 ? -1 : 0;
-    const newHeadingHere = Math.max(0, (loc.headingHereNow || 0) + intentDelta);
-
-    const timesAgo = ['just now', '30 sec ago', '1 min ago', '2 min ago'];
-    return {
-      ...loc,
-      currentWait: newWait,
-      crowdLevel: newCrowdLevel,
-      headingHereNow: newHeadingHere,
-      lastUpdated: timesAgo[Math.floor(Math.random() * timesAgo.length)],
-      reports: loc.reports + (Math.random() > 0.7 ? 1 : 0),
-    };
-  });
 }

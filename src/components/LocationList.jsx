@@ -58,7 +58,7 @@ export default function LocationList({ locations, filterCategory, searchQuery, o
 
               <div className="loc-card-status">
                 <div className={`loc-wait ${loc.crowdLevel}`}>
-                  {loc.crowdLevel === 'closed' ? 'Closed' : `${loc.currentWait}m`}
+                  {loc.crowdLevel === 'closed' ? 'Closed' : loc.currentWait != null ? `${loc.currentWait}m` : 'No Data'}
                 </div>
                 <div className={`loc-status-label ${loc.crowdLevel || 'empty'}`}>
                   {loc.crowdLevel}

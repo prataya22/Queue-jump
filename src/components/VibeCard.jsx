@@ -106,7 +106,7 @@ function formatTimeRange(startHour, endHour) {
   return `${formatHour(startHour)} - ${formatHour(endHour)}`;
 }
 
-export default function VibeCard({ location, onClose, onVerify, onGoingNow, onVerifyReport, currentUserId }) {
+export default function VibeCard({ location, onClose, onVerify, onGoingNow, onVerifyReport, onDisputeReport, currentUserId }) {
   const [verified, setVerified] = useState(false);
   const [going, setGoing] = useState(false);
   const [reportVerified, setReportVerified] = useState(false);
@@ -291,31 +291,67 @@ export default function VibeCard({ location, onClose, onVerify, onGoingNow, onVe
               <div style={{ fontSize: '10px', color: 'rgba(59, 130, 246, 0.7)', marginBottom: '10px' }}>
                 Verifications: <span style={{ fontWeight: 600 }}>{location.latestReport.verificationCount || 0} / 2</span>
               </div>
-              
               {currentUserId && currentUserId !== location.latestReport.reporterId && (
-                <motion.button
-                  onClick={() => {
-                    onVerifyReport(location.id, location.latestReport.reporterId);
-                    setReportVerified(true);
-                  }}
-                  disabled={reportVerified}
-                  style={{
-                    width: '100%',
-                    padding: '8px',
-                    background: reportVerified ? 'rgba(0, 255, 136, 0.2)' : '#3B82F6',
-                    border: 'none',
-                    borderRadius: '6px',
-                    color: reportVerified ? '#00FF88' : '#FFF',
-                    fontSize: '11px',
-                    fontWeight: '600',
-                    cursor: reportVerified ? 'default' : 'pointer',
-                    opacity: reportVerified ? 0.7 : 1
-                  }}
-                  whileHover={!reportVerified ? { scale: 1.05 } : {}}
-                  whileTap={!reportVerified ? { scale: 0.95 } : {}}
-                >
-                  {reportVerified ? '✅ You Verified' : '👍 I Confirm This'}
-                </motion.button>
+                <div style={{ display: 'flex', gap: '8px' }}>
+                  <motion.button
+                    onClick={() => {
+                      onVerifyReport(location.id, location.latestReport.reporterId);
+                      setReportVerified(true);
+                    }}
+                    disabled={reportVerified}
+                    style={{
+                      flex: 1,
+                      padding: '8px',
+                      background: reportVerified ? 'rgba(0, 255, 136, 0.2)' : '#3B82F6',
+                      border: 'none',
+                      borderRadius: '6px',
+                      color: reportVerified ? '#00FF88' : '#FFF',
+                      fontSize: '11px',
+                      fontWeight: '600',
+                      cursor: reportVerified ? 'default' : 'pointer',
+                      opacity: reportVerified ? 0.7 : 1
+                    }}
+                    whileHover={!reportVerified ? { scale: 1.05 } : {}}
+                    whileTap={!reportVerified ? { scale: 0.95 } : {}}
+                  >
+                    {reportVerified ? '✅ You Verified' : '👍 Looks Right'}
+                  </motion.button>
+
+                  <motion.button
+                    onClick={() => onDisputeReport(location.id, location.latestReport.reporterId)}
+                    disabled={reportVerified}
+                    style={{
+                      flex: 1,
+                      padding: '8px',
+                      background: 'rgba(255, 45, 85, 0.15)',
+                      border: '1px solid rgba(255, 45, 85, 0.4)',
+                      borderRadius: '6px',
+                      color: '#FF2D55',
+                      fontSize: '11px',
+                      fontWeight: '600',
+                      cursor: reportVerified ? 'default' : 'pointer',
+                      opacity: reportVerified ? 0.5 : 1
+                    }}
+                    whileHover={!reportVerified ? { scale: 1.05 } : {}}
+                    whileTap={!reportVerified ? { scale: 0.95 } : {}}
+                  >
+                    ❌ Wrong
+                  </motion.button>
+                </div>
+              )}
+
+              {/* Reporter sees pending message instead of buttons */}
+              {currentUserId && currentUserId === location.latestReport.reporterId && (
+                <div style={{
+                  padding: '8px',
+                  background: 'rgba(59, 130, 246, 0.1)',
+                  borderRadius: '6px',
+                  fontSize: '11px',
+                  color: 'rgba(59, 130, 246, 0.8)',
+                  textAlign: 'center'
+                }}>
+                  ⏳ Waiting for others to verify your report...
+                </div>
               )}
             </motion.div>
           )}

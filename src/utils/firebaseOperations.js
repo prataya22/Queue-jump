@@ -155,6 +155,8 @@ export const verifyLocationCrowd = async (locationId) => {
 /**
  * Increment heading-here count for a location (syncs with realtime listeners).
  */
+const HEADING_HERE_DECAY_MS = 10 * 60 * 1000; // 10 minutes then decrement
+
 export const incrementHeadingHere = async (locationId) => {
   try {
     const locationRef = ref(database, `locations/${locationId}`);
@@ -165,6 +167,23 @@ export const incrementHeadingHere = async (locationId) => {
         headingHereNow,
         lastUpdated: new Date().toISOString(),
       });
+
+      // Auto-decrement after 10 minutes
+      setTimeout(async () => {
+        try {
+          const snap = await get(locationRef);
+          if (snap.exists()) {
+            const current = snap.val().headingHereNow || 0;
+            await update(locationRef, {
+              headingHereNow: Math.max(0, current - 1),
+              lastUpdated: new Date().toISOString(),
+            });
+            console.log(`🏃 Heading here count decremented for ${locationId}`);
+          }
+        } catch (e) {
+          console.error('Failed to decrement headingHereNow:', e);
+        }
+      }, HEADING_HERE_DECAY_MS);
     }
   } catch (error) {
     console.error('Error incrementing heading here:', error);
@@ -179,6 +198,8 @@ export const incrementHeadingHere = async (locationId) => {
  * @param {number} waitTime - Reported wait time in minutes
  * @param {string} timestamp - ISO timestamp
  */
+const AUTO_VERIFY_DELAY_MS = 5 * 60 * 1000; // 5 minutes — change this as you like
+
 export const submitReportWithVerification = async (locationId, userId, waitTime, timestamp) => {
   try {
     const reportRef = ref(database, `locations/${locationId}/latestReport`);
@@ -192,6 +213,41 @@ export const submitReportWithVerification = async (locationId, userId, waitTime,
       createdAt: timestamp,
     });
     console.log(`Report submitted for verification at ${locationId}:`, { userId, waitTime });
+
+    setTimeout(async () => {
+      try {
+        const snapshot = await get(reportRef);
+        if (!snapshot.exists()) return;
+
+        const report = snapshot.val();
+
+        if (!report.verified) {
+          const locationRef = ref(database, `locations/${locationId}`);
+          const crowdLevel = waitTime <= 10 ? 'empty' : waitTime <= 25 ? 'moderate' : 'packed';
+
+          await update(locationRef, {
+            currentWait: waitTime,
+            crowdLevel,
+            lastUpdated: new Date().toISOString(),
+          });
+          await update(reportRef, { verified: true, autoVerified: true });
+
+          const karmaTotal = await addUserKarma(userId, 20, `Wait time report approved at ${locationId}`);
+          console.log(`⏱️ Auto-approved! Karma awarded. New total: ${karmaTotal}`);
+        } else if (report.verified && report.autoVerified) {
+          // Already verified but karma might not have been awarded — award it now
+          const alreadyAwarded = report.karmaAwarded;
+          if (!alreadyAwarded) {
+            await update(reportRef, { karmaAwarded: true });
+            const karmaTotal = await addUserKarma(userId, 20, `Wait time report approved at ${locationId}`);
+            console.log(`⏱️ Karma awarded on retry. New total: ${karmaTotal}`);
+          }
+        }
+      } catch (e) {
+        console.error('Auto-verify failed:', e);
+      }
+    }, AUTO_VERIFY_DELAY_MS);
+
   } catch (error) {
     console.error('Error submitting report with verification:', error);
     throw error;
@@ -222,7 +278,7 @@ export const verifyReportAccuracy = async (locationId, userId) => {
         return false;
       }
       
-      const newVerifications = [...(report.verifications || []), userId];
+     const newVerifications = [...(report.verifications || []), userId];
       const verificationCount = newVerifications.length;
       const verified = verificationCount >= 2; // Require 2 verifications for confirmation
       
@@ -232,9 +288,22 @@ export const verifyReportAccuracy = async (locationId, userId) => {
         verified,
         lastVerifiedAt: new Date().toISOString(),
       });
+
+      // ✅ Only now update the live wait time, after verification threshold is met
+      if (verified && !report.verified) {
+        const locationRef = ref(database, `locations/${locationId}`);
+        const waitTime = report.waitTime;
+        const crowdLevel = waitTime <= 10 ? 'empty' : waitTime <= 25 ? 'moderate' : 'packed';
+        await update(locationRef, {
+          currentWait: waitTime,
+          crowdLevel,
+          lastUpdated: new Date().toISOString(),
+        });
+        console.log(`✅ Verification threshold met! Live wait time updated to ${waitTime} min`);
+      }
       
       console.log(`Report verified by user ${userId}. Total verifications: ${verificationCount}`);
-      return verified; // Return true if verification threshold met
+      return verified;
     }
     return false;
   } catch (error) {
@@ -260,5 +329,51 @@ export const isReportVerified = async (locationId) => {
   } catch (error) {
     console.error('Error checking report verification:', error);
     return false;
+  }
+};
+/**
+ * Dispute a report — if 2 disputes come in, invalidate the report
+ */
+export const disputeReport = async (locationId, disputerId) => {
+  try {
+    const reportRef = ref(database, `locations/${locationId}/latestReport`);
+    const snapshot = await get(reportRef);
+
+    if (!snapshot.exists()) return;
+
+    const report = snapshot.val();
+
+    // Can't dispute your own report
+    if (report.reporterId === disputerId) return;
+
+    const disputes = report.disputes || [];
+    if (disputes.includes(disputerId)) return; // Already disputed
+
+    const newDisputes = [...disputes, disputerId];
+
+    await update(reportRef, {
+      disputes: newDisputes,
+      disputeCount: newDisputes.length,
+    });
+
+    // If 2 disputes → invalidate report, reset location to unknown
+    if (newDisputes.length >= 2) {
+      const locationRef = ref(database, `locations/${locationId}`);
+      await update(locationRef, {
+        currentWait: null,
+        crowdLevel: 'unknown',
+        lastUpdated: new Date().toISOString(),
+      });
+      await update(reportRef, { invalidated: true });
+
+      // Penalize the reporter — deduct 10 karma
+      if (report.reporterId) {
+        await addUserKarma(report.reporterId, -10, `Report disputed at ${locationId}`);
+      }
+
+      console.log(`🚫 Report invalidated at ${locationId} due to disputes`);
+    }
+  } catch (e) {
+    console.error('Dispute failed:', e);
   }
 };
