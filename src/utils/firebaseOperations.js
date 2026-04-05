@@ -1,5 +1,5 @@
-import { ref, update, push, set, get, runTransaction } from 'firebase/database';
-import { database } from '../firebase';
+import { ref, update, push, set, get, runTransaction } from "firebase/database";
+import { database } from "../firebase";
 
 /**
  * Update a location's data in Firebase
@@ -15,7 +15,7 @@ export const updateLocationInFirebase = async (locationId, updates) => {
     });
     console.log(`Updated location ${locationId}`, updates);
   } catch (error) {
-    console.error('Error updating location:', error);
+    console.error("Error updating location:", error);
     throw error;
   }
 };
@@ -33,9 +33,9 @@ export const submitLocationReport = async (locationId, reportData) => {
       ...reportData,
       timestamp: new Date().toISOString(),
     });
-    console.log('Report submitted:', reportData);
+    console.log("Report submitted:", reportData);
   } catch (error) {
-    console.error('Error submitting report:', error);
+    console.error("Error submitting report:", error);
     throw error;
   }
 };
@@ -50,7 +50,7 @@ export const addUserKarma = async (userId, points, action) => {
   try {
     const userRef = ref(database, `users/${userId}`);
     const timestamp = new Date().toISOString();
-    const safeKey = timestamp.replace(/\./g, '_'); // Replace dots with underscores for Firebase keys
+    const safeKey = timestamp.replace(/\./g, "_"); // Replace dots with underscores for Firebase keys
     let nextTotal = 0;
 
     const result = await runTransaction(userRef, (current) => {
@@ -59,14 +59,17 @@ export const addUserKarma = async (userId, points, action) => {
         return {
           id: userId,
           karmaPoint: points,
-          karma: { points, level: 'novice' },
+          karma: { points, level: "novice" },
           lastActivity: timestamp,
           activity: { [safeKey]: { action, points } },
         };
       }
       const prev = current.karma?.points ?? current.karmaPoint ?? 0;
       nextTotal = prev + points;
-      const activity = { ...(current.activity || {}), [safeKey]: { action, points } };
+      const activity = {
+        ...(current.activity || {}),
+        [safeKey]: { action, points },
+      };
       const keys = Object.keys(activity).sort();
       if (keys.length > MAX_ACTIVITY_KEYS) {
         keys.slice(0, keys.length - MAX_ACTIVITY_KEYS).forEach((k) => {
@@ -83,14 +86,16 @@ export const addUserKarma = async (userId, points, action) => {
     });
 
     if (result.committed) {
-      console.log(`Success: Added ${points} karma to user ${userId}. New total: ${nextTotal}`);
+      console.log(
+        `Success: Added ${points} karma to user ${userId}. New total: ${nextTotal}`,
+      );
       return nextTotal;
     } else {
-      console.warn('Transaction not committed');
-      throw new Error('Transaction aborted');
+      console.warn("Transaction not committed");
+      throw new Error("Transaction aborted");
     }
   } catch (error) {
-    console.error('Error adding karma:', error);
+    console.error("Error adding karma:", error);
     throw error;
   }
 };
@@ -104,17 +109,17 @@ export const initializeNewUser = async (userId, userData) => {
   try {
     const userRef = ref(database, `users/${userId}`);
     const snapshot = await get(userRef);
-    
+
     // Only initialize if user doesn't exist
     if (!snapshot.exists()) {
       await set(userRef, {
         id: userId,
-        name: userData.name || 'New User',
+        name: userData.name || "New User",
         email: userData.email,
         karmaPoint: 0,
         karma: {
           points: 0,
-          level: 'novice',
+          level: "novice",
         },
         createdAt: new Date().toISOString(),
         lastActivity: new Date().toISOString(),
@@ -125,7 +130,7 @@ export const initializeNewUser = async (userId, userData) => {
       console.log(`User ${userId} already exists, skipping initialization`);
     }
   } catch (error) {
-    console.error('Error initializing new user:', error);
+    console.error("Error initializing new user:", error);
     throw error;
   }
 };
@@ -137,7 +142,7 @@ export const verifyLocationCrowd = async (locationId) => {
   try {
     const locationRef = ref(database, `locations/${locationId}`);
     const snapshot = await get(locationRef);
-    
+
     if (snapshot.exists()) {
       const verifications = (snapshot.val().verifications || 0) + 1;
       await update(locationRef, {
@@ -147,7 +152,7 @@ export const verifyLocationCrowd = async (locationId) => {
       });
     }
   } catch (error) {
-    console.error('Error verifying location:', error);
+    console.error("Error verifying location:", error);
     throw error;
   }
 };
@@ -181,12 +186,12 @@ export const incrementHeadingHere = async (locationId) => {
             console.log(`🏃 Heading here count decremented for ${locationId}`);
           }
         } catch (e) {
-          console.error('Failed to decrement headingHereNow:', e);
+          console.error("Failed to decrement headingHereNow:", e);
         }
       }, HEADING_HERE_DECAY_MS);
     }
   } catch (error) {
-    console.error('Error incrementing heading here:', error);
+    console.error("Error incrementing heading here:", error);
     throw error;
   }
 };
@@ -200,7 +205,12 @@ export const incrementHeadingHere = async (locationId) => {
  */
 const AUTO_VERIFY_DELAY_MS = 5 * 60 * 1000; // 5 minutes — change this as you like
 
-export const submitReportWithVerification = async (locationId, userId, waitTime, timestamp) => {
+export const submitReportWithVerification = async (
+  locationId,
+  userId,
+  waitTime,
+  timestamp,
+) => {
   try {
     const reportRef = ref(database, `locations/${locationId}/latestReport`);
     await set(reportRef, {
@@ -212,7 +222,10 @@ export const submitReportWithVerification = async (locationId, userId, waitTime,
       verified: false,
       createdAt: timestamp,
     });
-    console.log(`Report submitted for verification at ${locationId}:`, { userId, waitTime });
+    console.log(`Report submitted for verification at ${locationId}:`, {
+      userId,
+      waitTime,
+    });
 
     setTimeout(async () => {
       try {
@@ -223,33 +236,71 @@ export const submitReportWithVerification = async (locationId, userId, waitTime,
 
         if (!report.verified) {
           const locationRef = ref(database, `locations/${locationId}`);
-          const crowdLevel = waitTime <= 10 ? 'empty' : waitTime <= 25 ? 'moderate' : 'packed';
+          const crowdLevel =
+            waitTime <= 10 ? "empty" : waitTime <= 25 ? "moderate" : "packed";
+
+          const locSnap = await get(locationRef);
+          const currentReports = locSnap.exists()
+            ? locSnap.val().reports || 0
+            : 0;
+
+          // Update trend data for current hour
+          const currentHour = new Date().getHours();
+          const existingTrend = locSnap.exists()
+            ? locSnap.val().trend || []
+            : [];
+
+          const updatedTrend = existingTrend.map((t) => {
+            // Match current hour to trend entry
+            const tHour =
+              t.hour.includes("PM") && !t.hour.includes("12")
+                ? parseInt(t.hour) + 12
+                : parseInt(t.hour);
+            if (tHour === currentHour) {
+              return {
+                ...t,
+                crowd: Math.round((waitTime / 30) * 100), // Convert wait time to crowd percentage
+              };
+            }
+            return t;
+          });
 
           await update(locationRef, {
             currentWait: waitTime,
             crowdLevel,
+            reports: currentReports + 1,
+            trend: updatedTrend.length > 0 ? updatedTrend : existingTrend,
             lastUpdated: new Date().toISOString(),
           });
           await update(reportRef, { verified: true, autoVerified: true });
 
-          const karmaTotal = await addUserKarma(userId, 20, `Wait time report approved at ${locationId}`);
-          console.log(`⏱️ Auto-approved! Karma awarded. New total: ${karmaTotal}`);
+          const karmaTotal = await addUserKarma(
+            userId,
+            20,
+            `Wait time report approved at ${locationId}`,
+          );
+          console.log(
+            `⏱️ Auto-approved! Karma awarded. New total: ${karmaTotal}`,
+          );
         } else if (report.verified && report.autoVerified) {
           // Already verified but karma might not have been awarded — award it now
           const alreadyAwarded = report.karmaAwarded;
           if (!alreadyAwarded) {
             await update(reportRef, { karmaAwarded: true });
-            const karmaTotal = await addUserKarma(userId, 20, `Wait time report approved at ${locationId}`);
+            const karmaTotal = await addUserKarma(
+              userId,
+              20,
+              `Wait time report approved at ${locationId}`,
+            );
             console.log(`⏱️ Karma awarded on retry. New total: ${karmaTotal}`);
           }
         }
       } catch (e) {
-        console.error('Auto-verify failed:', e);
+        console.error("Auto-verify failed:", e);
       }
     }, AUTO_VERIFY_DELAY_MS);
-
   } catch (error) {
-    console.error('Error submitting report with verification:', error);
+    console.error("Error submitting report with verification:", error);
     throw error;
   }
 };
@@ -263,25 +314,25 @@ export const verifyReportAccuracy = async (locationId, userId) => {
   try {
     const reportRef = ref(database, `locations/${locationId}/latestReport`);
     const snapshot = await get(reportRef);
-    
+
     if (snapshot.exists()) {
       const report = snapshot.val();
-      
+
       // Prevent self-verification and duplicate verification
       if (report.reporterId === userId) {
-        console.log('Cannot verify your own report');
+        console.log("Cannot verify your own report");
         return false;
       }
-      
+
       if (report.verifications && report.verifications.includes(userId)) {
-        console.log('User already verified this report');
+        console.log("User already verified this report");
         return false;
       }
-      
-     const newVerifications = [...(report.verifications || []), userId];
+
+      const newVerifications = [...(report.verifications || []), userId];
       const verificationCount = newVerifications.length;
       const verified = verificationCount >= 2; // Require 2 verifications for confirmation
-      
+
       await update(reportRef, {
         verifications: newVerifications,
         verificationCount,
@@ -293,21 +344,26 @@ export const verifyReportAccuracy = async (locationId, userId) => {
       if (verified && !report.verified) {
         const locationRef = ref(database, `locations/${locationId}`);
         const waitTime = report.waitTime;
-        const crowdLevel = waitTime <= 10 ? 'empty' : waitTime <= 25 ? 'moderate' : 'packed';
+        const crowdLevel =
+          waitTime <= 10 ? "empty" : waitTime <= 25 ? "moderate" : "packed";
         await update(locationRef, {
           currentWait: waitTime,
           crowdLevel,
           lastUpdated: new Date().toISOString(),
         });
-        console.log(`✅ Verification threshold met! Live wait time updated to ${waitTime} min`);
+        console.log(
+          `✅ Verification threshold met! Live wait time updated to ${waitTime} min`,
+        );
       }
-      
-      console.log(`Report verified by user ${userId}. Total verifications: ${verificationCount}`);
+
+      console.log(
+        `Report verified by user ${userId}. Total verifications: ${verificationCount}`,
+      );
       return verified;
     }
     return false;
   } catch (error) {
-    console.error('Error verifying report:', error);
+    console.error("Error verifying report:", error);
     throw error;
   }
 };
@@ -321,13 +377,13 @@ export const isReportVerified = async (locationId) => {
   try {
     const reportRef = ref(database, `locations/${locationId}/latestReport`);
     const snapshot = await get(reportRef);
-    
+
     if (snapshot.exists()) {
       return snapshot.val().verified === true;
     }
     return false;
   } catch (error) {
-    console.error('Error checking report verification:', error);
+    console.error("Error checking report verification:", error);
     return false;
   }
 };
@@ -361,19 +417,23 @@ export const disputeReport = async (locationId, disputerId) => {
       const locationRef = ref(database, `locations/${locationId}`);
       await update(locationRef, {
         currentWait: null,
-        crowdLevel: 'unknown',
+        crowdLevel: "unknown",
         lastUpdated: new Date().toISOString(),
       });
       await update(reportRef, { invalidated: true });
 
       // Penalize the reporter — deduct 10 karma
       if (report.reporterId) {
-        await addUserKarma(report.reporterId, -10, `Report disputed at ${locationId}`);
+        await addUserKarma(
+          report.reporterId,
+          -10,
+          `Report disputed at ${locationId}`,
+        );
       }
 
       console.log(`🚫 Report invalidated at ${locationId} due to disputes`);
     }
   } catch (e) {
-    console.error('Dispute failed:', e);
+    console.error("Dispute failed:", e);
   }
 };

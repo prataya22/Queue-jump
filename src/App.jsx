@@ -158,33 +158,30 @@ export default function App() {
     if (!user?.uid || userData == null) return;
     const p = userData.karma?.points ?? userData.karmaPoint ?? 0;
 
-    // Clear pending items from activity that have now been credited in Firebase
-    persistActivityOverride(prev => 
-      prev.filter(item => {
-        // Keep non-pending items
-        if (item.status !== 'pending') return false;
-        // Remove confirmed/credited ones
-        return true;
-      }).map(item => {
-        // If points in Firebase have increased since this item was added,
-        // mark it as confirmed and schedule removal
-        if (item.status === 'pending' && p > 0) {
-          return { ...item, status: 'confirmed' };
-        }
-        return item;
-      })
-    );
+    // Clear pending items that have now been credited in Firebase
+    persistActivityOverride(prev => {
+      if (!prev || prev.length === 0) return prev;
+      const hasPending = prev.some(item => item.status === 'pending');
+      if (!hasPending) return prev;
 
-    if (pointsOverride != null && typeof p === 'number' && p === pointsOverride) {
-      setPointsOverride(null);
-      // Clear all confirmed items after a short delay so user sees the confirmation
+      // If Firebase points increased, mark pending as confirmed
+      const updated = prev.map(item => 
+        item.status === 'pending' ? { ...item, status: 'confirmed' } : item
+      );
+
+      // Clear after 3 seconds
       setTimeout(() => {
         persistActivityOverride([]);
         localStorage.removeItem('queuejump_activity_override');
-      }, 3000); // Show "confirmed" for 3 seconds then clear
-    }
-  }, [user?.uid, userData, pointsOverride]);
+      }, 3000);
 
+      return updated;
+    });
+
+    if (pointsOverride != null && typeof p === 'number' && p === pointsOverride) {
+      setPointsOverride(null);
+    }
+  }, [user?.uid, userData]);
   const karma = useMemo(() => {
     // Guest persistence is now handled by createGuestKarmaState/localStorage
     if (!user?.uid) return guestKarma;

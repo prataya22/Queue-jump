@@ -22,7 +22,10 @@ export const BADGE_DEFINITIONS = [
     icon: '📡',
     desc: 'Made your first crowd report',
     isEarned: (points, acts) =>
-      acts.some((a) => String(a.action).includes('Reported') && String(a.action).includes('wait at')),
+      acts.some((a) => 
+        (String(a.action).includes('Reported') && String(a.action).includes('wait at')) ||
+        String(a.action).includes('Wait time report approved at')
+      ),
   },
   {
     id: 'verifier',
