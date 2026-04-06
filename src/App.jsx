@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useMemo } from "react";
+import { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import { AnimatePresence } from "framer-motion";
 import LoginScreen from "./components/LoginScreen";
 import LocationList from "./components/LocationList";
@@ -154,22 +154,33 @@ export default function App() {
   const [verificationPending, setVerificationPending] = useState({});
   const { userData } = useRealtimeUserData(user?.uid);
 
-useEffect(() => {
+  const prevPointsRef = useRef(null);
+
+  useEffect(() => {
     if (!user?.uid || userData == null) return;
     const p = userData.karma?.points ?? userData.karmaPoint ?? 0;
 
-    // Only clear when pointsOverride matches Firebase — meaning karma was just credited
-    if (pointsOverride != null && typeof p === "number" && p === pointsOverride) {
-      setPointsOverride(null);
+    // Detect when Firebase karma increases (auto-verify awarded karma)
+    if (prevPointsRef.current !== null && p > prevPointsRef.current) {
+      // Karma increased in Firebase — clear pending panel
       persistActivityOverride((prev) =>
         prev.map((item) =>
-          item.status === "pending" ? { ...item, status: "confirmed" } : item
-        )
+          item.status === "pending" ? { ...item, status: "confirmed" } : item,
+        ),
       );
       setTimeout(() => {
         persistActivityOverride([]);
         localStorage.removeItem("queuejump_activity_override");
       }, 3000);
+    }
+    prevPointsRef.current = p;
+
+    if (
+      pointsOverride != null &&
+      typeof p === "number" &&
+      p === pointsOverride
+    ) {
+      setPointsOverride(null);
     }
   }, [user?.uid, userData, pointsOverride]);
   const karma = useMemo(() => {

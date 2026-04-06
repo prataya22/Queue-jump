@@ -340,19 +340,33 @@ export const verifyReportAccuracy = async (locationId, userId) => {
         lastVerifiedAt: new Date().toISOString(),
       });
 
-      // ✅ Only now update the live wait time, after verification threshold is met
       if (verified && !report.verified) {
         const locationRef = ref(database, `locations/${locationId}`);
         const waitTime = report.waitTime;
         const crowdLevel =
           waitTime <= 10 ? "empty" : waitTime <= 25 ? "moderate" : "packed";
+
+        const locSnap = await get(locationRef);
+        const currentReports = locSnap.exists()
+          ? locSnap.val().reports || 0
+          : 0;
+
         await update(locationRef, {
           currentWait: waitTime,
           crowdLevel,
+          reports: currentReports + 1,
           lastUpdated: new Date().toISOString(),
         });
+
+        // ✅ Award karma to reporter immediately when 2 users verify
+        await update(reportRef, { karmaAwarded: true });
+        await addUserKarma(
+          report.reporterId,
+          20,
+          `Wait time report approved at ${locationId}`,
+        );
         console.log(
-          `✅ Verification threshold met! Live wait time updated to ${waitTime} min`,
+          `✅ Verification threshold met! Karma awarded to ${report.reporterId}`,
         );
       }
 
