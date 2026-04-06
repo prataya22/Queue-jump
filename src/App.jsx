@@ -154,34 +154,24 @@ export default function App() {
   const [verificationPending, setVerificationPending] = useState({});
   const { userData } = useRealtimeUserData(user?.uid);
 
-  useEffect(() => {
+useEffect(() => {
     if (!user?.uid || userData == null) return;
     const p = userData.karma?.points ?? userData.karmaPoint ?? 0;
 
-    // Clear pending items that have now been credited in Firebase
-    persistActivityOverride(prev => {
-      if (!prev || prev.length === 0) return prev;
-      const hasPending = prev.some(item => item.status === 'pending');
-      if (!hasPending) return prev;
-
-      // If Firebase points increased, mark pending as confirmed
-      const updated = prev.map(item => 
-        item.status === 'pending' ? { ...item, status: 'confirmed' } : item
+    // Only clear when pointsOverride matches Firebase — meaning karma was just credited
+    if (pointsOverride != null && typeof p === "number" && p === pointsOverride) {
+      setPointsOverride(null);
+      persistActivityOverride((prev) =>
+        prev.map((item) =>
+          item.status === "pending" ? { ...item, status: "confirmed" } : item
+        )
       );
-
-      // Clear after 3 seconds
       setTimeout(() => {
         persistActivityOverride([]);
-        localStorage.removeItem('queuejump_activity_override');
+        localStorage.removeItem("queuejump_activity_override");
       }, 3000);
-
-      return updated;
-    });
-
-    if (pointsOverride != null && typeof p === 'number' && p === pointsOverride) {
-      setPointsOverride(null);
     }
-  }, [user?.uid, userData]);
+  }, [user?.uid, userData, pointsOverride]);
   const karma = useMemo(() => {
     // Guest persistence is now handled by createGuestKarmaState/localStorage
     if (!user?.uid) return guestKarma;

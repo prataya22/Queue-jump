@@ -115,11 +115,14 @@ export default function VibeCard({
   onDisputeReport,
   currentUserId,
 }) {
+  const reportKey = `${currentUserId}_${location.id}_${location.latestReport?.createdAt ?? "none"}`;
+
   const [verified, setVerified] = useState(false);
   const [going, setGoing] = useState(false);
+
   const [reportVerified, setReportVerified] = useState(() => {
     try {
-      const saved = localStorage.getItem(`verified_${location.id}`);
+      const saved = localStorage.getItem(`verified_${reportKey}`);
       return saved === "true";
     } catch {
       return false;
@@ -128,7 +131,7 @@ export default function VibeCard({
 
   const [reportDisputed, setReportDisputed] = useState(() => {
     try {
-      const saved = localStorage.getItem(`disputed_${location.id}`);
+      const saved = localStorage.getItem(`disputed_${reportKey}`);
       return saved === "true";
     } catch {
       return false;
@@ -322,149 +325,151 @@ export default function VibeCard({
             })()}
 
           {/* Report Verification Section */}
-          {location.latestReport && !location.latestReport.invalidated && !location.latestReport.verified && (
-            <motion.div
-              initial={{ opacity: 0, y: -10 }}
-              animate={{ opacity: 1, y: 0 }}
-              style={{
-                background:
-                  "linear-gradient(135deg, rgba(59, 130, 246, 0.15), rgba(99, 102, 241, 0.1))",
-                borderLeft: "3px solid #3B82F6",
-                padding: "12px",
-                borderRadius: "8px",
-                marginBottom: "12px",
-              }}
-            >
-              <div
+          {location.latestReport &&
+            !location.latestReport.invalidated &&
+            !location.latestReport.verified && (
+              <motion.div
+                initial={{ opacity: 0, y: -10 }}
+                animate={{ opacity: 1, y: 0 }}
                 style={{
-                  fontSize: "12px",
-                  fontWeight: "600",
-                  color: "#3B82F6",
-                  marginBottom: "8px",
-                  display: "flex",
-                  alignItems: "center",
-                  gap: "6px",
+                  background:
+                    "linear-gradient(135deg, rgba(59, 130, 246, 0.15), rgba(99, 102, 241, 0.1))",
+                  borderLeft: "3px solid #3B82F6",
+                  padding: "12px",
+                  borderRadius: "8px",
+                  marginBottom: "12px",
                 }}
               >
-                🔍 <span>Report Under Review</span>
-              </div>
-              <div
-                style={{
-                  fontSize: "11px",
-                  color: "rgba(59, 130, 246, 0.9)",
-                  marginBottom: "8px",
-                }}
-              >
-                Wait time reported:{" "}
-                <span style={{ fontWeight: 600 }}>
-                  {location.latestReport.waitTime || 0} min
-                </span>
-              </div>
-              <div
-                style={{
-                  fontSize: "10px",
-                  color: "rgba(59, 130, 246, 0.7)",
-                  marginBottom: "10px",
-                }}
-              >
-                Verifications:{" "}
-                <span style={{ fontWeight: 600 }}>
-                  {location.latestReport.verificationCount || 0} / 2
-                </span>
-              </div>
-              {currentUserId &&
-                currentUserId !== location.latestReport.reporterId && (
-                  <div style={{ display: "flex", gap: "8px" }}>
-                    <motion.button
-                      onClick={() => {
-                        onVerifyReport(
-                          location.id,
-                          location.latestReport.reporterId,
-                        );
-                        setReportVerified(true);
-                        try {
-                          localStorage.setItem(
-                            `verified_${location.id}`,
-                            "true",
-                          );
-                        } catch {}
-                      }}
-                      disabled={reportVerified}
-                      style={{
-                        flex: 1,
-                        padding: "8px",
-                        background: reportVerified
-                          ? "rgba(0, 255, 136, 0.2)"
-                          : "#3B82F6",
-                        border: "none",
-                        borderRadius: "6px",
-                        color: reportVerified ? "#00FF88" : "#FFF",
-                        fontSize: "11px",
-                        fontWeight: "600",
-                        cursor: reportVerified ? "default" : "pointer",
-                        opacity: reportVerified ? 0.7 : 1,
-                      }}
-                      whileHover={!reportVerified ? { scale: 1.05 } : {}}
-                      whileTap={!reportVerified ? { scale: 0.95 } : {}}
-                    >
-                      {reportVerified ? "✅ You Verified" : "👍 Looks Right"}
-                    </motion.button>
-
-                    <motion.button
-                      onClick={() => {
-                        if (!reportDisputed) {
-                          onDisputeReport(
+                <div
+                  style={{
+                    fontSize: "12px",
+                    fontWeight: "600",
+                    color: "#3B82F6",
+                    marginBottom: "8px",
+                    display: "flex",
+                    alignItems: "center",
+                    gap: "6px",
+                  }}
+                >
+                  🔍 <span>Report Under Review</span>
+                </div>
+                <div
+                  style={{
+                    fontSize: "11px",
+                    color: "rgba(59, 130, 246, 0.9)",
+                    marginBottom: "8px",
+                  }}
+                >
+                  Wait time reported:{" "}
+                  <span style={{ fontWeight: 600 }}>
+                    {location.latestReport.waitTime || 0} min
+                  </span>
+                </div>
+                <div
+                  style={{
+                    fontSize: "10px",
+                    color: "rgba(59, 130, 246, 0.7)",
+                    marginBottom: "10px",
+                  }}
+                >
+                  Verifications:{" "}
+                  <span style={{ fontWeight: 600 }}>
+                    {location.latestReport.verificationCount || 0} / 2
+                  </span>
+                </div>
+                {currentUserId &&
+                  currentUserId !== location.latestReport.reporterId && (
+                    <div style={{ display: "flex", gap: "8px" }}>
+                      <motion.button
+                        onClick={() => {
+                          onVerifyReport(
                             location.id,
                             location.latestReport.reporterId,
                           );
-                          setReportDisputed(true);
+                          setReportVerified(true);
                           try {
                             localStorage.setItem(
-                              `disputed_${location.id}`,
+                              `verified_${reportKey}`,
                               "true",
                             );
                           } catch {}
-                        }
-                      }}
-                      disabled={reportDisputed}
-                      style={{
-                        flex: 1,
-                        padding: "8px",
-                        background: "rgba(255, 45, 85, 0.15)",
-                        border: "1px solid rgba(255, 45, 85, 0.4)",
-                        borderRadius: "6px",
-                        color: "#FF2D55",
-                        fontSize: "11px",
-                        fontWeight: "600",
-                        cursor: reportVerified ? "default" : "pointer",
-                        opacity: reportVerified ? 0.5 : 1,
-                      }}
-                      whileHover={!reportVerified ? { scale: 1.05 } : {}}
-                      whileTap={!reportVerified ? { scale: 0.95 } : {}}
-                    >
-                     {reportDisputed ? '⚠️ Disputed' : '❌ Wrong'}
-                    </motion.button>
-                  </div>
-                )}
+                        }}
+                        disabled={reportVerified || reportDisputed}
+                        style={{
+                          flex: 1,
+                          padding: "8px",
+                          background: reportVerified
+                            ? "rgba(0, 255, 136, 0.2)"
+                            : "#3B82F6",
+                          border: "none",
+                          borderRadius: "6px",
+                          color: reportVerified ? "#00FF88" : "#FFF",
+                          fontSize: "11px",
+                          fontWeight: "600",
+                          cursor: reportVerified ? "default" : "pointer",
+                          opacity: reportVerified ? 0.7 : 1,
+                        }}
+                        whileHover={!reportVerified ? { scale: 1.05 } : {}}
+                        whileTap={!reportVerified ? { scale: 0.95 } : {}}
+                      >
+                        {reportVerified ? "✅ You Verified" : "👍 Looks Right"}
+                      </motion.button>
 
-              {/* Reporter sees pending message instead of buttons */}
-              {currentUserId &&
-                currentUserId === location.latestReport.reporterId && (
-                  <div
-                    style={{
-                      padding: "8px",
-                      background: "rgba(59, 130, 246, 0.1)",
-                      borderRadius: "6px",
-                      fontSize: "11px",
-                      color: "rgba(59, 130, 246, 0.8)",
-                      textAlign: "center",
-                    }}
-                  >
-                    ⏳ Waiting for others to verify your report...
-                  </div>
-                )}
-            </motion.div>
-          )}
+                      <motion.button
+                        onClick={() => {
+                          if (!reportDisputed) {
+                            onDisputeReport(
+                              location.id,
+                              location.latestReport.reporterId,
+                            );
+                            setReportDisputed(true);
+                            try {
+                              localStorage.setItem(
+                                `disputed_${reportKey}`,
+                                "true",
+                              );
+                            } catch {}
+                          }
+                        }}
+                        disabled={reportDisputed || reportVerified}
+                        style={{
+                          flex: 1,
+                          padding: "8px",
+                          background: "rgba(255, 45, 85, 0.15)",
+                          border: "1px solid rgba(255, 45, 85, 0.4)",
+                          borderRadius: "6px",
+                          color: "#FF2D55",
+                          fontSize: "11px",
+                          fontWeight: "600",
+                          cursor: reportVerified ? "default" : "pointer",
+                          opacity: reportVerified ? 0.5 : 1,
+                        }}
+                        whileHover={!reportVerified ? { scale: 1.05 } : {}}
+                        whileTap={!reportVerified ? { scale: 0.95 } : {}}
+                      >
+                        {reportDisputed ? "⚠️ Disputed" : "❌ Wrong"}
+                      </motion.button>
+                    </div>
+                  )}
+
+                {/* Reporter sees pending message instead of buttons */}
+                {currentUserId &&
+                  currentUserId === location.latestReport.reporterId && (
+                    <div
+                      style={{
+                        padding: "8px",
+                        background: "rgba(59, 130, 246, 0.1)",
+                        borderRadius: "6px",
+                        fontSize: "11px",
+                        color: "rgba(59, 130, 246, 0.8)",
+                        textAlign: "center",
+                      }}
+                    >
+                      ⏳ Waiting for others to verify your report...
+                    </div>
+                  )}
+              </motion.div>
+            )}
 
           <div className="vibe-stats">
             <div className="vibe-stat">
