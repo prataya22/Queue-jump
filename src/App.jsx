@@ -163,20 +163,23 @@ export default function App() {
     // First time we get points, just sync the ref to avoid false "change" detection
     if (prevPointsRef.current === null) {
       prevPointsRef.current = p;
-      
+
       // But we SHOULD still check if we need to clear stale local "pending" items
       // if they've already been confirmed in the server history.
-      const firebaseActs = Array.isArray(userData.activity) 
-        ? userData.activity 
+      const firebaseActs = Array.isArray(userData.activity)
+        ? userData.activity
         : Object.values(userData.activity || {});
-      
+
       persistActivityOverride((prev) => {
         if (!prev.length) return prev;
-        return prev.filter(local => {
-          if (local.status !== 'pending') return false;
+        return prev.filter((local) => {
+          if (local.status !== "pending") return false;
           // If server already has a matching prefix (e.g. "Report: 10m at Canteen"), clear local
-          const isConfirmed = firebaseActs.some(fb => 
-            fb.action && local.action && fb.action.startsWith(local.action.split(' (')[0])
+          const isConfirmed = firebaseActs.some(
+            (fb) =>
+              fb.action &&
+              local.action &&
+              fb.action.startsWith(local.action.split(" (")[0]),
           );
           return !isConfirmed;
         });
@@ -187,23 +190,25 @@ export default function App() {
     // Detect when Firebase karma changes
     if (p !== prevPointsRef.current) {
       console.log(`✅ Karma sync: ${prevPointsRef.current} -> ${p}`);
-      
+
       persistActivityOverride((prev) => {
         const nextStatus = p > prevPointsRef.current ? "confirmed" : "disputed";
         return prev.map((item) =>
-          item.status === "pending" ? { ...item, status: nextStatus } : item
+          item.status === "pending" ? { ...item, status: nextStatus } : item,
         );
       });
 
       // Clear confirmed/disputed items after a delay
       setTimeout(() => {
-        persistActivityOverride((prev) => 
-          prev.filter(item => item.status !== "confirmed" && item.status !== "disputed")
+        persistActivityOverride((prev) =>
+          prev.filter(
+            (item) => item.status !== "confirmed" && item.status !== "disputed",
+          ),
         );
         localStorage.removeItem("queuejump_activity_override");
       }, 3000);
     }
-    
+
     prevPointsRef.current = p;
 
     if (pointsOverride != null && p === pointsOverride) {
@@ -536,7 +541,20 @@ export default function App() {
         console.log("Cannot verify your own report");
         return;
       }
-
+      setLocalLocations((prev) =>
+        prev.map((loc) =>
+          loc.id === locationId && loc.latestReport
+            ? {
+                ...loc,
+                latestReport: {
+                  ...loc.latestReport,
+                  verificationCount:
+                    (loc.latestReport.verificationCount || 0) + 1,
+                },
+              }
+            : loc,
+        ),
+      );
       try {
         const verified = await verifyReportAccuracy(locationId, user.uid);
 
