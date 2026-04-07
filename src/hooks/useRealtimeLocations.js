@@ -24,9 +24,16 @@ export const useRealtimeLocations = () => {
           if (snapshot.exists()) {
             const data = snapshot.val();
             // Convert object to array if needed
-            const rawArray = Array.isArray(data)
-            ? data
-            : Object.entries(data).map(([key, val]) => ({ ...val, id: key }));
+           // Convert object to array AND ensure IDs are safely attached
+            let rawArray = [];
+            if (Array.isArray(data)) {
+              // If Firebase treats it as an array, the index is the ID
+              data.forEach((val, index) => {
+                if (val) rawArray.push({ ...val, id: String(index) });
+              });
+            } else {
+              rawArray = Object.entries(data).map(([key, val]) => ({ ...val, id: String(key) }));
+            }
 
             
 

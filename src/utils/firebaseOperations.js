@@ -322,15 +322,23 @@ export const verifyReportAccuracy = async (locationId, userId) => {
     let reporterId = null;
 
     const result = await runTransaction(reportRef, (report) => {
-      if (!report) return null;
+      // If cache is empty, return the null to force a server check
+      if (!report) return report; 
 
       // Prevent self-verification
       if (report.reporterId === userId) {
         return; // Abort transaction
       }
 
+      // SAFELY handle Firebase turning arrays into objects
+      let currentVerifications = [];
+      if (Array.isArray(report.verifications)) {
+        currentVerifications = report.verifications;
+      } else if (report.verifications && typeof report.verifications === 'object') {
+        currentVerifications = Object.values(report.verifications);
+      }
+
       // Prevent duplicate verification
-      const currentVerifications = report.verifications || [];
       if (currentVerifications.includes(userId)) {
         return; // Already verified, don't update
       }
