@@ -313,36 +313,49 @@ export const submitReportWithVerification = async (
 export const verifyReportAccuracy = async (locationId, userId) => {
   try {
     const reportRef = ref(database, `locations/${locationId}/latestReport`);
-    const snapshot = await get(reportRef);
+    let awardKarma = false;
+    let reporterId = null;
 
-    if (snapshot.exists()) {
-      const report = snapshot.val();
+    const result = await runTransaction(reportRef, (report) => {
+      if (!report) return null;
 
-      // Prevent self-verification and duplicate verification
+      // Prevent self-verification
       if (report.reporterId === userId) {
-        console.log("Cannot verify your own report");
-        return false;
+        return; // Abort transaction
       }
 
-      if (report.verifications && report.verifications.includes(userId)) {
-        console.log("User already verified this report");
-        return false;
+      // Prevent duplicate verification
+      const currentVerifications = report.verifications || [];
+      if (currentVerifications.includes(userId)) {
+        return; // Already verified, don't update
       }
 
-      const newVerifications = [...(report.verifications || []), userId];
+      const newVerifications = [...currentVerifications, userId];
       const verificationCount = newVerifications.length;
-      const verified = verificationCount >= 2; // Require 2 verifications for confirmation
+      const willBeVerified = verificationCount >= 2;
 
-      await update(reportRef, {
+      // Only award karma if threshold met AND not already awarded
+      if (willBeVerified && !report.karmaAwarded) {
+        awardKarma = true;
+        reporterId = report.reporterId;
+      }
+
+      return {
+        ...report,
         verifications: newVerifications,
         verificationCount,
-        verified,
+        verified: willBeVerified || report.verified,
         lastVerifiedAt: new Date().toISOString(),
-      });
+        karmaAwarded: awardKarma || report.karmaAwarded,
+      };
+    });
 
-      if (verified && !report.verified) {
+    if (result.committed && result.snapshot.exists()) {
+      const snapData = result.snapshot.val();
+
+      if (awardKarma && reporterId) {
         const locationRef = ref(database, `locations/${locationId}`);
-        const waitTime = report.waitTime;
+        const waitTime = snapData.waitTime;
         const crowdLevel =
           waitTime <= 10 ? "empty" : waitTime <= 25 ? "moderate" : "packed";
 
@@ -358,29 +371,29 @@ export const verifyReportAccuracy = async (locationId, userId) => {
           lastUpdated: new Date().toISOString(),
         });
 
-        // ✅ Award karma to reporter immediately when 2 users verify
-        await update(reportRef, { karmaAwarded: true });
         await addUserKarma(
-          report.reporterId,
+          reporterId,
           20,
           `Wait time report approved at ${locationId}`,
         );
         console.log(
-          `✅ Verification threshold met! Karma awarded to ${report.reporterId}`,
+          `✅ Verification threshold met! Karma awarded to ${reporterId}`,
         );
       }
 
       console.log(
-        `Report verified by user ${userId}. Total verifications: ${verificationCount}`,
+        `Report verified by user ${userId}. Total verifications: ${snapData.verificationCount}`,
       );
-      return verified;
+      return snapData.verified;
     }
+
     return false;
   } catch (error) {
     console.error("Error verifying report:", error);
     throw error;
   }
 };
+
 
 /**
  * Check if a report has enough verifications to confirm karma
@@ -407,47 +420,65 @@ export const isReportVerified = async (locationId) => {
 export const disputeReport = async (locationId, disputerId) => {
   try {
     const reportRef = ref(database, `locations/${locationId}/latestReport`);
-    const snapshot = await get(reportRef);
+    let triggerInvalidation = false;
+    let reporterId = null;
 
-    if (!snapshot.exists()) return;
+    const result = await runTransaction(reportRef, (report) => {
+      if (!report) return null;
 
-    const report = snapshot.val();
-
-    // Can't dispute your own report
-    if (report.reporterId === disputerId) return;
-
-    const disputes = report.disputes || [];
-    if (disputes.includes(disputerId)) return; // Already disputed
-
-    const newDisputes = [...disputes, disputerId];
-
-    await update(reportRef, {
-      disputes: newDisputes,
-      disputeCount: newDisputes.length,
-    });
-
-    // If 2 disputes → invalidate report, reset location to unknown
-    if (newDisputes.length >= 2) {
-      const locationRef = ref(database, `locations/${locationId}`);
-      await update(locationRef, {
-        currentWait: null,
-        crowdLevel: "unknown",
-        lastUpdated: new Date().toISOString(),
-      });
-      await update(reportRef, { invalidated: true });
-
-      // Penalize the reporter — deduct 10 karma
-      if (report.reporterId) {
-        await addUserKarma(
-          report.reporterId,
-          -10,
-          `Report disputed at ${locationId}`,
-        );
+      // Can't dispute your own report
+      if (report.reporterId === disputerId) {
+        return; // Abort
       }
 
-      console.log(`🚫 Report invalidated at ${locationId} due to disputes`);
+      // Check if already disputed by this user
+      const currentDisputes = report.disputes || [];
+      if (currentDisputes.includes(disputerId)) {
+        return; // Already disputed, don't update
+      }
+
+      const newDisputes = [...currentDisputes, disputerId];
+      const disputeCount = newDisputes.length;
+      const shouldInvalidate = disputeCount >= 2;
+
+      // Only trigger logic if threshold met AND not already invalidated
+      if (shouldInvalidate && !report.invalidated) {
+        triggerInvalidation = true;
+        reporterId = report.reporterId;
+      }
+
+      return {
+        ...report,
+        disputes: newDisputes,
+        disputeCount,
+        invalidated: shouldInvalidate || report.invalidated,
+      };
+    });
+
+    if (result.committed && result.snapshot.exists()) {
+      if (triggerInvalidation) {
+        // Reset location data
+        const locationRef = ref(database, `locations/${locationId}`);
+        await update(locationRef, {
+          currentWait: null,
+          crowdLevel: "unknown",
+          lastUpdated: new Date().toISOString(),
+        });
+
+        // Penalize the reporter — deduct 10 karma
+        if (reporterId) {
+          await addUserKarma(
+            reporterId,
+            -10,
+            `Report disputed at ${locationId}`,
+          );
+        }
+
+        console.log(`🚫 Report invalidated at ${locationId} due to 2+ disputes`);
+      }
     }
   } catch (e) {
     console.error("Dispute failed:", e);
   }
 };
+

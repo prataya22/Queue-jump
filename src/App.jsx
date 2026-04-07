@@ -175,7 +175,7 @@ export default function App() {
       );
       setTimeout(() => {
         persistActivityOverride([]);
-        localStorage.removeItem(activityKey);
+        localStorage.removeItem("queuejump_activity_override");
       }, 3000);
     }
     prevPointsRef.current = p;
@@ -540,6 +540,13 @@ export default function App() {
               return item;
             }),
           );
+
+          // Safety: Clear confirmed items after 3 seconds even if points update is slow
+          setTimeout(() => {
+            persistActivityOverride((prev) =>
+              prev.filter((item) => item.status !== "confirmed"),
+            );
+          }, 3500);
 
           // Clear verification pending status
           setVerificationPending((prev) => {
