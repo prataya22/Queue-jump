@@ -357,12 +357,12 @@ export const verifyReportAccuracy = async (locationId, userId) => {
         ...report,
         verifications: newVerifications,
         verificationCount,
-        verified: willBeVerified || report.verified,
+        // Add " || false" to ensure these never resolve to undefined!
+        verified: willBeVerified || report.verified || false,
         lastVerifiedAt: new Date().toISOString(),
-        karmaAwarded: awardKarma || report.karmaAwarded,
+        karmaAwarded: awardKarma || report.karmaAwarded || false, 
       };
     });
-
     if (result.committed && result.snapshot.exists()) {
       const snapData = result.snapshot.val();
 
@@ -496,4 +496,3 @@ export const disputeReport = async (locationId, disputerId) => {
     console.error("Dispute failed:", e);
   }
 };
-

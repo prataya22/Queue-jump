@@ -38,7 +38,10 @@ export const useRealtimeLocations = () => {
             
 
             const mergedArray = initialLocations.map(baseLoc => {
-            const dbLoc = rawArray.find(l => l.id === baseLoc.id);
+              // Wrap both sides in String() to guarantee a match!
+              const dbLoc = rawArray.find(l => String(l.id) === String(baseLoc.id));
+              
+          
             
               // Load the user's latest local report from localStorage (Optimistic Persistence)
               let localReport = null;

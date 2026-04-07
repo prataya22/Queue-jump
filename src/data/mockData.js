@@ -2,8 +2,8 @@
 // Campus locations + Tech Fest Stalls with live-updating crowd data
 // College hours: 10 AM – 6 PM
 
-export const COLLEGE_OPEN_HOUR = 10; // 10 AM
-export const COLLEGE_CLOSE_HOUR = 18; // 6 PM
+export const COLLEGE_OPEN_HOUR = 9; // 10 AM
+export const COLLEGE_CLOSE_HOUR = 20; // 6 PM
 
 export const CROWD_LEVELS = {
   EMPTY: 'empty',
