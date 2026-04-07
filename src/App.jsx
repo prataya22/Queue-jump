@@ -160,31 +160,53 @@ export default function App() {
     if (!user?.uid || userData == null) return;
     const p = userData.karma?.points ?? userData.karmaPoint ?? 0;
 
-    // Detect when Firebase karma increases (auto-verify awarded karma)
-    if (prevPointsRef.current !== null && p !== prevPointsRef.current) {
-      console.log(`✅ Karma changed! Clearing pending panel`);
-      persistActivityOverride((prev) =>
-        prev.map((item) =>
-          item.status === "pending"
-            ? {
-                ...item,
-                status: p > prevPointsRef.current ? "confirmed" : "disputed",
-              }
-            : item,
-        ),
-      );
+    // First time we get points, just sync the ref to avoid false "change" detection
+    if (prevPointsRef.current === null) {
+      prevPointsRef.current = p;
+      
+      // But we SHOULD still check if we need to clear stale local "pending" items
+      // if they've already been confirmed in the server history.
+      const firebaseActs = Array.isArray(userData.activity) 
+        ? userData.activity 
+        : Object.values(userData.activity || {});
+      
+      persistActivityOverride((prev) => {
+        if (!prev.length) return prev;
+        return prev.filter(local => {
+          if (local.status !== 'pending') return false;
+          // If server already has a matching prefix (e.g. "Report: 10m at Canteen"), clear local
+          const isConfirmed = firebaseActs.some(fb => 
+            fb.action && local.action && fb.action.startsWith(local.action.split(' (')[0])
+          );
+          return !isConfirmed;
+        });
+      });
+      return;
+    }
+
+    // Detect when Firebase karma changes
+    if (p !== prevPointsRef.current) {
+      console.log(`✅ Karma sync: ${prevPointsRef.current} -> ${p}`);
+      
+      persistActivityOverride((prev) => {
+        const nextStatus = p > prevPointsRef.current ? "confirmed" : "disputed";
+        return prev.map((item) =>
+          item.status === "pending" ? { ...item, status: nextStatus } : item
+        );
+      });
+
+      // Clear confirmed/disputed items after a delay
       setTimeout(() => {
-        persistActivityOverride([]);
+        persistActivityOverride((prev) => 
+          prev.filter(item => item.status !== "confirmed" && item.status !== "disputed")
+        );
         localStorage.removeItem("queuejump_activity_override");
       }, 3000);
     }
+    
     prevPointsRef.current = p;
 
-    if (
-      pointsOverride != null &&
-      typeof p === "number" &&
-      p === pointsOverride
-    ) {
+    if (pointsOverride != null && p === pointsOverride) {
       setPointsOverride(null);
     }
   }, [user?.uid, userData, pointsOverride]);
@@ -291,7 +313,7 @@ export default function App() {
 
       if (user?.uid) {
         try {
-          const activityLabel = `Confirmed crowd status at ${locName}`;
+          const activityLabel = `Verified crowd at ${locName}`;
           const total = await addUserKarma(user.uid, 10, activityLabel);
           if (typeof total === "number") {
             console.log(`Google Account: Optimistic update to ${total} points`);
@@ -308,7 +330,7 @@ export default function App() {
       } else {
         console.log("Guest Account: Updating local karma");
         setGuestKarma((prev) =>
-          appendGuestKarma(prev, 10, `Confirmed crowd status at ${locName}`),
+          appendGuestKarma(prev, 10, `Verified crowd at ${locName}`),
         );
       }
 
@@ -448,7 +470,7 @@ export default function App() {
       }
 
       try {
-        const activityLabel = `Reported ${sanitizedWait} min wait at ${locName}`;
+        const activityLabel = `Report: ${sanitizedWait}m at ${locName}`;
         const reportId = `${locationId}-${timestamp}`;
 
         // Show pending karma in activity - waiting for verification
@@ -530,6 +552,7 @@ export default function App() {
               // Find the corresponding pending report and update it
               if (
                 item.status === "pending" &&
+                item.action?.includes(`Report:`) &&
                 item.action?.includes(
                   localLocations.find((l) => l.id === locationId)?.name ||
                     "location",

@@ -272,12 +272,16 @@ export const submitReportWithVerification = async (
             trend: updatedTrend.length > 0 ? updatedTrend : existingTrend,
             lastUpdated: new Date().toISOString(),
           });
-          await update(reportRef, { verified: true, autoVerified: true });
+          await update(reportRef, { 
+            verified: true, 
+            autoVerified: true,
+            karmaAwarded: true 
+          });
 
           const karmaTotal = await addUserKarma(
             userId,
             20,
-            `Wait time report approved at ${locationId}`,
+            `Report: ${waitTime}m at ${locationId} (Verified)`,
           );
           console.log(
             `⏱️ Auto-approved! Karma awarded. New total: ${karmaTotal}`,
@@ -290,12 +294,13 @@ export const submitReportWithVerification = async (
             const karmaTotal = await addUserKarma(
               userId,
               20,
-              `Wait time report approved at ${locationId}`,
+              `Report: ${report.waitTime}m at ${locationId} (Verified)`,
             );
             console.log(`⏱️ Karma awarded on retry. New total: ${karmaTotal}`);
           }
         }
       } catch (e) {
+
         console.error("Auto-verify failed:", e);
       }
     }, AUTO_VERIFY_DELAY_MS);
@@ -374,7 +379,7 @@ export const verifyReportAccuracy = async (locationId, userId) => {
         await addUserKarma(
           reporterId,
           20,
-          `Wait time report approved at ${locationId}`,
+          `Report: ${waitTime}m at ${locationId} (Verified)`,
         );
         console.log(
           `✅ Verification threshold met! Karma awarded to ${reporterId}`,
@@ -467,10 +472,12 @@ export const disputeReport = async (locationId, disputerId) => {
 
         // Penalize the reporter — deduct 10 karma
         if (reporterId) {
+          const reportSnap = await get(reportRef);
+          const rData = reportSnap.val() || {};
           await addUserKarma(
             reporterId,
             -10,
-            `Report disputed at ${locationId}`,
+            `Report: ${rData.waitTime || '?'}m at ${locationId} (Disputed)`,
           );
         }
 

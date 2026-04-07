@@ -23,8 +23,7 @@ export const BADGE_DEFINITIONS = [
     desc: 'Made your first crowd report',
     isEarned: (points, acts) =>
       acts.some((a) => 
-        (String(a.action).includes('Reported') && String(a.action).includes('wait at')) ||
-        String(a.action).includes('Wait time report approved at')
+        String(a.action).includes('Report:') && String(a.action).includes('at')
       ),
   },
   {
@@ -33,7 +32,7 @@ export const BADGE_DEFINITIONS = [
     icon: '✅',
     desc: 'Verified 10 crowd levels',
     isEarned: (points, acts) =>
-      acts.filter((a) => String(a.action).includes('Confirmed crowd status')).length >= 10,
+      acts.filter((a) => String(a.action).includes('Verified crowd at')).length >= 10,
   },
   {
     id: 'hero',
