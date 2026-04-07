@@ -400,14 +400,23 @@ export default function VibeCard({
                           padding: "8px",
                           background: reportVerified
                             ? "rgba(0, 255, 136, 0.2)"
-                            : "#3B82F6",
+                            : reportDisputed
+                              ? "rgba(59, 130, 246, 0.1)"
+                              : "#3B82F6",
                           border: "none",
                           borderRadius: "6px",
-                          color: reportVerified ? "#00FF88" : "#FFF",
+                          color: reportVerified
+                            ? "#00FF88"
+                            : reportDisputed
+                              ? "rgba(255,255,255,0.3)"
+                              : "#FFF",
                           fontSize: "11px",
                           fontWeight: "600",
-                          cursor: reportVerified ? "default" : "pointer",
-                          opacity: reportVerified ? 0.7 : 1,
+                          cursor:
+                            reportVerified || reportDisputed
+                              ? "default"
+                              : "pointer",
+                          opacity: reportVerified || reportDisputed ? 0.5 : 1,
                         }}
                         whileHover={!reportVerified ? { scale: 1.05 } : {}}
                         whileTap={!reportVerified ? { scale: 0.95 } : {}}
@@ -435,13 +444,22 @@ export default function VibeCard({
                         style={{
                           flex: 1,
                           padding: "8px",
-                          background: "rgba(255, 45, 85, 0.15)",
+                          background: reportDisputed
+                            ? "rgba(255, 45, 85, 0.2)"
+                            : "rgba(255, 45, 85, 0.15)",
                           border: "1px solid rgba(255, 45, 85, 0.4)",
                           borderRadius: "6px",
-                          color: "#FF2D55",
+                          color: reportDisputed
+                            ? "rgba(255, 45, 85, 0.9)"
+                            : reportVerified
+                              ? "rgba(255, 45, 85, 0.3)"
+                              : "#FF2D55",
                           fontSize: "11px",
                           fontWeight: "600",
-                          cursor: reportVerified ? "default" : "pointer",
+                          cursor:
+                            reportDisputed || reportVerified
+                              ? "default"
+                              : "pointer",
                           opacity: reportVerified ? 0.5 : 1,
                         }}
                         whileHover={!reportVerified ? { scale: 1.05 } : {}}

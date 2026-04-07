@@ -161,16 +161,21 @@ export default function App() {
     const p = userData.karma?.points ?? userData.karmaPoint ?? 0;
 
     // Detect when Firebase karma increases (auto-verify awarded karma)
-    if (prevPointsRef.current !== null && p > prevPointsRef.current) {
-      // Karma increased in Firebase — clear pending panel
+    if (prevPointsRef.current !== null && p !== prevPointsRef.current) {
+      console.log(`✅ Karma changed! Clearing pending panel`);
       persistActivityOverride((prev) =>
         prev.map((item) =>
-          item.status === "pending" ? { ...item, status: "confirmed" } : item,
+          item.status === "pending"
+            ? {
+                ...item,
+                status: p > prevPointsRef.current ? "confirmed" : "disputed",
+              }
+            : item,
         ),
       );
       setTimeout(() => {
         persistActivityOverride([]);
-        localStorage.removeItem("queuejump_activity_override");
+        localStorage.removeItem(activityKey);
       }, 3000);
     }
     prevPointsRef.current = p;
@@ -518,12 +523,6 @@ export default function App() {
           const locationName =
             localLocations.find((l) => l.id === locationId)?.name || "location";
           const activityLabel = `Crowd report verified at ${locationName}`;
-
-          // Award karma to original reporter (not the verifier)
-          const total = await addUserKarma(reporterId, 20, activityLabel);
-          console.log(
-            `Report verified! Awarded 20 karma to reporter. New total: ${total}`,
-          );
 
           // Update pending status to confirmed in activity
           persistActivityOverride((prev) =>
