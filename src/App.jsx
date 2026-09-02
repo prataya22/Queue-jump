@@ -269,6 +269,66 @@ export default function App() {
   const [searchQuery, setSearchQuery] = useState("");
   const [showLoginModal, setShowLoginModal] = useState(false);
 
+  const applyNavigationState = useCallback((navigationState) => {
+    setActiveTab(navigationState.activeTab || "map");
+    setSelectedLocationId(navigationState.selectedLocationId || null);
+    setShowLoginModal(Boolean(navigationState.showLoginModal));
+  }, []);
+
+  useEffect(() => {
+    const initialState = {
+      ...(window.history.state || {}),
+      queueJump: true,
+      activeTab: "map",
+      selectedLocationId: null,
+      showLoginModal: false,
+      navigationDepth: 0,
+    };
+
+    window.history.replaceState(initialState, "", window.location.href);
+
+    const handlePopState = (event) => {
+      if (event.state?.queueJump) {
+        applyNavigationState(event.state);
+      }
+    };
+
+    window.addEventListener("popstate", handlePopState);
+    return () => window.removeEventListener("popstate", handlePopState);
+  }, [applyNavigationState]);
+
+  const pushNavigationState = useCallback((navigationState) => {
+    const currentDepth = window.history.state?.navigationDepth || 0;
+    const nextState = {
+      ...navigationState,
+      queueJump: true,
+      navigationDepth: currentDepth + 1,
+    };
+
+    window.history.pushState(nextState, "", window.location.href);
+    applyNavigationState(nextState);
+  }, [applyNavigationState]);
+
+  const replaceNavigationState = useCallback((navigationState) => {
+    const nextState = {
+      ...navigationState,
+      queueJump: true,
+      navigationDepth: window.history.state?.navigationDepth || 0,
+    };
+
+    window.history.replaceState(nextState, "", window.location.href);
+    applyNavigationState(nextState);
+  }, [applyNavigationState]);
+
+  const goBackInApp = useCallback((fallback) => {
+    if (window.history.state?.queueJump && window.history.state.navigationDepth > 0) {
+      window.history.back();
+      return;
+    }
+
+    fallback();
+  }, []);
+
   const selectedLocation = selectedLocationId
     ? localLocations.find((l) => l.id === selectedLocationId) || null
     : null;
@@ -294,12 +354,16 @@ export default function App() {
   }, []);
 
   const handleSelectLocation = useCallback((loc) => {
-    setSelectedLocationId(loc.id);
-  }, []);
+    pushNavigationState({
+      activeTab: "map",
+      selectedLocationId: loc.id,
+      showLoginModal: false,
+    });
+  }, [pushNavigationState]);
 
   const handleCloseVibeCard = useCallback(() => {
-    setSelectedLocationId(null);
-  }, []);
+    goBackInApp(() => setSelectedLocationId(null));
+  }, [goBackInApp]);
 
   const handleVerify = useCallback(
     async (locationId) => {
@@ -621,9 +685,12 @@ export default function App() {
   );
 
   const handleTabChange = useCallback((tab) => {
-    setActiveTab(tab);
-    setSelectedLocationId(null);
-  }, []);
+    pushNavigationState({
+      activeTab: tab,
+      selectedLocationId: null,
+      showLoginModal: false,
+    });
+  }, [pushNavigationState]);
 
   useEffect(() => {
     setLocalLocations(locations);
@@ -734,11 +801,15 @@ export default function App() {
         {activeTab === "report" && (
           <ReportFlow
             locations={localLocations}
-            onClose={() => handleTabChange("map")}
+            onClose={() => goBackInApp(() => handleTabChange("map"))}
             onSubmit={handleSubmitReport}
             isAuthorized={!!user?.uid}
             onLoginClick={() => {
-              setShowLoginModal(true);
+              pushNavigationState({
+                activeTab: "report",
+                selectedLocationId: null,
+                showLoginModal: true,
+              });
             }}
           />
         )}
@@ -746,18 +817,24 @@ export default function App() {
 
       <AnimatePresence>
         {activeTab === "karma" && (
-          <KarmaPanel karma={karma} onClose={() => handleTabChange("map")} />
+          <KarmaPanel
+            karma={karma}
+            onClose={() => goBackInApp(() => handleTabChange("map"))}
+          />
         )}
       </AnimatePresence>
 
       <AnimatePresence>
         {showLoginModal && (
           <LoginModal
-            onClose={() => setShowLoginModal(false)}
+            onClose={() => goBackInApp(() => setShowLoginModal(false))}
             onLoginSuccess={(userData) => {
-              setShowLoginModal(false);
               handleLogin(userData);
-              handleTabChange("report");
+              replaceNavigationState({
+                activeTab: "report",
+                selectedLocationId: null,
+                showLoginModal: false,
+              });
             }}
           />
         )}
